@@ -7,6 +7,16 @@ import random
 from sklearn.decomposition import PCA
 from features import mfcc
 
+def plot_group(plot_set, title, *args):
+    if title not in plot_set:
+        return
+    colors = ['r', 'g', 'b', 'c', 'm', 'k', 'y']
+    plt.clf()
+    for a, c in zip(args, colors):
+        plt.plot(a, c)
+    plt.title(title)
+    plt.show()
+
 def stft(x, fs=44100, framesz=0.01, hop=0.005):
     framesamp = int(framesz*fs)
     hopsamp = int(hop*fs)
@@ -49,7 +59,7 @@ def get_features(chunk):
     '''Grab the features from a single keystroke'''
     # The definition of cepstrum
     f = mfcc(chunk)
-    return np.concatenate((f[0], f[1]))
+    return np.concatenate((f[2], f[3]))
     chunk = chunk[0:-500]
     max_ind = np.argmax(chunk)
     if max_ind < 0.2 * len(chunk):
@@ -94,7 +104,7 @@ def clusterize(ls, n=50):
 
         # M-step
         for i in range(n):
-            if len(z[i]) == 0:
+            if len(z[i]) = 0:
                 dead_cluster[i] = True
 
             if i in dead_cluster:
@@ -107,3 +117,7 @@ def clusterize(ls, n=50):
 
     return np.array([get_closest_cluster(means, l) for l in ls]), means
 
+
+def print_dict_sorted(d):
+    for v, k in sorted((v, k) for k, v in d.items()):
+        print '%s: %s' % (k, v)

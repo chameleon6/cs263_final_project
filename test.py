@@ -10,10 +10,18 @@ from mlalgs import (
     get_chunk_starts,
     get_features,
     clusterize,
+    print_dict_sorted,
+    plot_group
 )
 
-USE_PCA = True
+USE_PCA = False
 DEBUG = True
+# Which plots to actually plot.
+PLOT_SET = set([
+    # 'Segmentation Plot',
+    'Cepstrum Plot',
+    # 'PCA Plot',
+])
 
 def cache_or_compute(fname, fun, *args):
     if DEBUG:
@@ -62,35 +70,30 @@ ii[inds] = 1
 #ft_data, raw = stft(data[N:M])
 #plt.plot(ft_data/np.max(ft_data))
 #plt.plot(data[N:M:221]/float(np.max(data[N:M]))*4, "r")
-plt.plot(data[N:M])
-plt.plot(max(data[N:M]) * ii[N:M], "r")
-plt.plot(inds[0:50], chunk_maxs[0:50])
-plt.show()
+
+plot_group(PLOT_SET, 'Segmentation Plot',
+           data[N:M], max(data[N:M]) * ii[N:M])
 
 features = cache_or_compute('cache/features.npy', lambda ls: map(get_features, ls), chunks)
 
-plt.clf()
-plt.plot(features[spaces[0]], 'r')
-plt.plot(features[spaces[1]], 'g')
-plt.plot(features[spaces[2]], 'b')
-plt.plot(features[spaces[3]], 'c')
-plt.plot(features[spaces[4]], 'm')
-plt.show()
+plot_group(PLOT_SET, 'Cepstrum Plot',
+           features[spaces[0]],
+           features[spaces[1]],
+           features[spaces[2]],
+           features[0],
+           features[1])
 
 if USE_PCA:
     pca = PCA(n_components=20)
     pca.fit(features)
     print pca.explained_variance_ratio_
     features = pca.transform(features)
-
-plt.clf()
-plt.plot(features[spaces[0]], 'r')
-plt.plot(features[spaces[1]], 'g')
-plt.plot(features[spaces[2]], 'b')
-plt.plot(features[spaces[3]], 'c')
-plt.plot(features[spaces[4]], 'm')
-plt.show()
-sys.exit()
+    plot_group(PLOT_SET, 'PCA Plot',
+               features[spaces[0]],
+               features[spaces[1]],
+               features[spaces[2]],
+               features[spaces[3]],
+               features[spaces[4]])
 
 clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features)
 n_clusters = len(clusters)
@@ -120,7 +123,9 @@ cluster_dists = sorted([(sum(np.linalg.norm(i-j) for j in means), freqs[ni], ni)
     for (ni,i) in enumerate(means)])
 
 space_freqs = {}
-for (c,ind) in spaces:
+for ind in spaces:
+    if ind > len(clusters)-1: break
+    c = clusters[ind]
     if c not in space_freqs:
         space_freqs[c] = 0
     space_freqs[c] += 1
@@ -129,7 +134,15 @@ rel_freqs = {}
 for c in space_freqs:
     rel_freqs[c] = float(space_freqs[c])/freqs[c] if freqs[c] > 0 else 0
 
-print freqs, rel_freqs
+print 'Freqs'
+print
+print_dict_sorted(freqs)
+print 'Space Freqs'
+print
+print_dict_sorted(space_freqs)
+print 'Rel Freqs'
+print
+print_dict_sorted(rel_freqs)
 
 def compute_freq_dist(data):
     counts = {}
