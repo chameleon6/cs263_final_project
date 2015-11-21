@@ -18,7 +18,7 @@ USE_PCA = False
 DEBUG = True
 # Which plots to actually plot.
 PLOT_SET = set([
-    # 'Segmentation Plot',
+    'Segmentation Plot',
     'Cepstrum Plot',
     # 'PCA Plot',
 ])
@@ -49,10 +49,11 @@ with open("text.txt", "r") as f:
 # the fraction of the file we use
 file_range = (0, 1.0)
 
-chunks = cache_or_compute(
-    'cache/chunks.npy', lambda arg: get_chunk_starts(arg)[2],
+inds, ends, chunks = cache_or_compute(
+    'cache/chunks.npy', lambda arg: get_chunk_starts(arg),
     data[int(file_range[0] * len(data)): int(file_range[1] * len(data))])
 
+'''
 chunk_lens = [len(c) for c in chunks]
 chunk_maxs = [max(c) for c in chunks]
 inds = []
@@ -60,6 +61,7 @@ last_ind = 0
 for l in chunk_lens:
     last_ind += l
     inds.append(last_ind)
+'''
 
 print "num_chunks", len(chunks)
 # segmentation plot
@@ -67,12 +69,14 @@ N = 0
 M = 500000
 ii = np.zeros(len(data))
 ii[inds] = 1
+ii2 = np.zeros(len(data))
+ii2[ends] = 1
 #ft_data, raw = stft(data[N:M])
 #plt.plot(ft_data/np.max(ft_data))
 #plt.plot(data[N:M:221]/float(np.max(data[N:M]))*4, "r")
 
 plot_group(PLOT_SET, 'Segmentation Plot',
-           data[N:M], max(data[N:M]) * ii[N:M])
+           np.log(np.abs(data[N:M])))#, max(data[N:M]) * ii[N:M], -max(data[N:M]) * ii2[N:M])
 
 features = cache_or_compute('cache/features.npy', lambda ls: map(get_features, ls), chunks)
 

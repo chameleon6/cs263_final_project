@@ -6,6 +6,7 @@ import cPickle as pickle
 import random
 from sklearn.decomposition import PCA
 from features import mfcc
+from scipy import signal
 
 def plot_group(plot_set, title, *args):
     if title not in plot_set:
@@ -17,43 +18,93 @@ def plot_group(plot_set, title, *args):
     plt.title(title)
     plt.show()
 
-def stft(x, fs=44100, framesz=0.01, hop=0.005):
+def power_graph(x, fs=44100, framesz=0.01, hop=0.005):
     framesamp = int(framesz*fs)
     hopsamp = int(hop*fs)
     w = scipy.hanning(framesamp)
     X = scipy.array([scipy.fft(w*x[i:i+framesamp])
                      for i in range(0, len(x)-framesamp, hopsamp)])
-    return np.sqrt(np.sum(np.absolute(X)**2, axis=1)), X
+    return np.sqrt(np.sum(np.absolute(X)**2, axis=1))
 
-keypress_first_filter_len = 3000
-max_keypress_len = 10000
-min_keypress_len = 5000
+preceding_gap = 1000
+keypress_first_filter_len = 3000 + preceding_gap
+max_keypress_len = 10000 + preceding_gap
+min_keypress_len = 5000 + preceding_gap
 
 def get_chunk_starts(data):
-    thresh = sorted(data)[int(0.99 * len(data))]
+    '''
+        Better segmentation algorithm:
+            1. Segment data into small windows (very small)
+            2. Calculate total power in each window
+            3. Find windows exceeding threshold power.
+            4. Draw another window (of size min_keypress_len) around peak, query for 25% (15%) power,
+            and extract all contiguous windows exceeding this power around peak.
+    '''
+    power = power_graph(data)
+    intervals = []
+    min_size = 40
+    max_size = 50
+    before_peak = 6
+    win = np.ones(min_size)/float(min_size)
+    thresh = sorted(power)[int(0.7 * len(power))]
+    peaks = np.argwhere(data > thresh)
+
+    # For each element in peaks:
+    #   draw window of size min_size, calculate sum
+    #   move window, up until max_size/2.
+    #   Choose window with largest sum, and center of this window is cluster center.
+    #   Calculate window size: expand window size until power level reaches lower threshold, or you hit max_size
+    #   append (start, end) of window to intervals.
+    #   "zero" out this power.
+    #   Find next unexplained peak.
+
+    #peaks = signal.find_peaks_cwt(power, np.arange(3, 10))
+
+
+    plt.plot(np.log(power))
+    plt.plot(np.log(averages))
+    plt.plot(np.log(np.ones(len(power))*thresh))
+    #ii = np.zeros(len(power))
+    #ii[peaks] = 14
+    #plt.plot(ii, 'r+')
+    plt.show()
+
     is_start = data > thresh
+
+    starts = []
+
     for (i,v) in enumerate(is_start):
         if v:
-            for j in range(i+1, min(len(data), i+keypress_first_filter_len)):
+            s = max(i - preceding_gap, 0)
+            starts.append(s)
+            for j in range(s+1, min(len(data), s+keypress_first_filter_len)):
                 is_start[j] = False
 
-    current_chunk = []
     data_chunks = []
     last_max = 0
-    for (b, d) in zip(is_start, data):
-        current_chunk.append(d)
-        if b:
-            current_max = max(current_chunk)
-            if (current_max > last_max and
-                    (len(data_chunks) == 0 or len(data_chunks[-1]) > min_keypress_len)) \
-                    or len(data_chunks[-1]) > max_keypress_len:
-                data_chunks.append(np.array(current_chunk))
-            else:
-                data_chunks[-1] = np.append(data_chunks[-1],np.array(current_chunk))
-            current_chunk = []
-            last_max = current_max
+    N = len(starts)
+    real_starts = []
+    ends = []
+    for i in range(N):
+        a = starts[i]
+        candidate = starts[i+1] if i < N-1 else len(data)
+        b = a + max_keypress_len - preceding_gap
+        current_chunk = data[a:b]
+        current_max = max(np.abs(current_chunk))
 
-    return data, is_start, np.array(data_chunks)
+        if (current_max > last_max and
+                (len(data_chunks) == 0 or len(data_chunks[-1]) > min_keypress_len)) \
+                or len(data_chunks[-1]) > max_keypress_len:
+            data_chunks.append(np.array(current_chunk))
+            real_starts.append(a)
+            ends.append(b)
+            last_max = current_max
+        else:
+            data_chunks[-1] = np.append(data_chunks[-1], np.array(current_chunk))
+            ends[-1] = b
+            last_max = max(current_max, last_max)
+
+    return real_starts, ends, np.array(data_chunks)
 
 def get_features(chunk):
     '''Grab the features from a single keystroke'''
@@ -104,7 +155,7 @@ def clusterize(ls, n=50):
 
         # M-step
         for i in range(n):
-            if len(z[i]) = 0:
+            if len(z[i]) == 0:
                 dead_cluster[i] = True
 
             if i in dead_cluster:
