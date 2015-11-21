@@ -26,7 +26,7 @@ PLOT_SET = set([
 def cache_or_compute(fname, fun, *args):
     if DEBUG:
         c = fun(*args)
-        np.save(fname, c)
+        #np.save(fname, c)
         return c
     try:
         return np.load(fname)
@@ -76,16 +76,14 @@ ii2[ends] = 1
 #plt.plot(data[N:M:221]/float(np.max(data[N:M]))*4, "r")
 
 plot_group(PLOT_SET, 'Segmentation Plot',
-           np.log(np.abs(data[N:M])))#, max(data[N:M]) * ii[N:M], -max(data[N:M]) * ii2[N:M])
+           np.log(np.abs(data[N:M])+0.01), np.log(max(data[N:M]) * ii[N:M]+0.01), -np.log(max(data[N:M]) * ii2[N:M]+0.01))
 
 features = cache_or_compute('cache/features.npy', lambda ls: map(get_features, ls), chunks)
 
 plot_group(PLOT_SET, 'Cepstrum Plot',
            features[spaces[0]],
            features[spaces[1]],
-           features[spaces[2]],
-           features[0],
-           features[1])
+           features[spaces[2]])
 
 if USE_PCA:
     pca = PCA(n_components=20)
