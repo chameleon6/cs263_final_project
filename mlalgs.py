@@ -32,6 +32,48 @@ keypress_first_filter_len = 3000 + preceding_gap
 max_keypress_len = 10000 + preceding_gap
 min_keypress_len = 5000 + preceding_gap
 
+def get_chunk_starts_simpler(data):
+    keypress_first_filter_len = 3000
+    max_keypress_len = 10000
+    min_keypress_len = 5000
+    average_keypress_len = 7500
+
+    thresh = sorted(data)[int(0.99 * len(data))]
+    is_start = data > thresh
+    starts = []
+    ends = []
+    for (i,v) in enumerate(is_start):
+        if v:
+            for j in range(i+1, min(len(data), i+keypress_first_filter_len)):
+                is_start[j] = False
+
+    current_chunk = []
+    data_chunks = []
+    last_max = 0
+    for ind, (b, d) in enumerate(zip(is_start, data)):
+        current_chunk.append(d)
+        if b:
+            current_max = max(current_chunk)
+            if (current_max > last_max and
+                    (len(data_chunks) == 0 or len(data_chunks[-1]) > min_keypress_len)) \
+                    or len(data_chunks[-1]) > max_keypress_len:
+                data_chunks.append(np.array(current_chunk))
+            else:
+                data_chunks[-1] = np.append(data_chunks[-1],np.array(current_chunk))
+                #starts = starts[:-1]
+            current_chunk = []
+            last_max = current_max
+
+    last_start = 0
+    for i in data_chunks:
+        last_start += len(i)
+        starts.append(last_start)
+        ends.append(last_start + average_keypress_len)
+
+    #return data, is_start, np.array(data_chunks)
+    return starts, ends, np.array(data_chunks)
+
+
 def get_chunk_starts(data):
     '''
         Better segmentation algorithm:

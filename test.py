@@ -8,6 +8,7 @@ from sklearn.decomposition import PCA
 
 from mlalgs import (
     get_chunk_starts,
+    get_chunk_starts_simpler,
     get_features,
     clusterize,
     print_dict_sorted,
@@ -50,7 +51,7 @@ with open("text.txt", "r") as f:
 file_range = (0, 1.0)
 
 inds, ends, chunks = cache_or_compute(
-    'cache/chunks.npy', lambda arg: get_chunk_starts(arg),
+    'cache/chunks.npy', lambda arg: get_chunk_starts_simpler(arg),
     data[int(file_range[0] * len(data)): int(file_range[1] * len(data))])
 
 '''
