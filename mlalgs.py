@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import cPickle as pickle
 import random
 from sklearn.decomposition import PCA
-from features import mfcc
+from python_speech_features.features import mfcc
 from scipy import signal
 
 def plot_group(plot_set, title, *args):
