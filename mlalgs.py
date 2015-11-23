@@ -150,10 +150,25 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
+def binom_kernel(n):
+    kernel = [1.0]
+    for i in range(n):
+        k1 = [0]
+        k1.extend(kernel)
+        k2 = kernel[:]
+        k2.append(0)
+        kernel = [(x+y)/2 for x,y in zip(k1, k2)]
+
+    return np.array(kernel)
+
 def get_features_fft(data, starts, ends):
+    kernel_len = 100
     features = []
+    kernel = binom_kernel(kernel_len)
     for i,e in zip(starts, ends):
-        features.append(np.absolute(np.fft.fft(data[i:e])[0:300]))
+        spec = np.absolute(np.fft.fft(data[i:e])[0:3500])
+        f = np.convolve(spec, kernel)
+        features.append(f[::kernel_len])
     return features
 
 def get_features_cepstrum(data, starts):
@@ -175,7 +190,13 @@ def get_features_cepstrum(data, starts):
     return np.log(c[0:50])
 
 def get_features(data, starts, ends):
-    return get_features_fft(data, starts, ends)
+    f1 = get_features_fft(data, starts, ends)
+    f2 = get_features_cepstrum(data, starts)
+    assert len(f1) == len(f2)
+    print "fft feature len:", len(f1[0])
+    print "cepstrum feature len", len(f2[0])
+    f = [np.append(x/1000, y) for x,y in zip(f1,f2)]
+    return f
 
 def clusterize(ls, num_clusters=50):
     '''Clusters the objects (np arrays) in ls into clusters
@@ -188,7 +209,7 @@ def clusterize(ls, num_clusters=50):
     n = len(ls[0])
     m = len(ls)
     means = random.sample(ls, num_clusters)
-    variances = [np.identity(n) for _ in range(m)]
+    #variances = [np.identity(n) for _ in range(m)]
     assignments = [0 for i in range(len(ls))]
     dead_cluster = {}
 
@@ -233,7 +254,7 @@ def clusterize(ls, num_clusters=50):
             if i in dead_cluster:
                 continue
             means[i] = sum(item for item in z[i])/len(z[i])
-            variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
+            #variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
 
         #print variances
         print "iteration:", j, "num_changes:", changes
@@ -242,10 +263,9 @@ def clusterize(ls, num_clusters=50):
 
     return np.array([get_closest_cluster(means, l) for l in ls]), means
 
-
 def print_dict_sorted(d):
     l = []
     for v, k in sorted((v, k) for k, v in d.items()):
-        l.append( '%s: %s' % (k, v))
+        l.append( '[%s]: %s' % (k, v))
     for i in range(0, len(l), 5):
         print '         '.join(l[i: i+5])

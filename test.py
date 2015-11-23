@@ -32,7 +32,7 @@ DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
     #'Segmentation Plot',
-    'Cepstrum Plot',
+    #'Cepstrum Plot',
     'PCA Plot',
 ])
 PRINT_SET = set([
@@ -82,7 +82,7 @@ if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
 N = 0
-M = 500000
+M = 1000000
 ii = np.zeros(len(data))
 ii[inds] = 1
 ii2 = np.zeros(len(data))
@@ -146,17 +146,17 @@ if 'Clustering' in PRINT_SET:
             letter_given_cluster[clust] = {}
         cluster_given_letter[char][clust] = cluster_given_letter[char].get(clust, 0) + 1
         letter_given_cluster[clust][char] = letter_given_cluster[clust].get(char, 0) + 1
-    for char, clust in zip(text, clusters):
+    for char, clust in zip(text, clusters)[:60]: # not sure when we make first chunk mistake
         s = sum(letter_given_cluster[clust].values())
         log_likeliness += math.log(letter_given_cluster[clust][char]/float(s))
 
     print 'Cluster given letter'
     for char in cluster_given_letter:
-        print char
+        print "CHARACTER:", char
         print_dict_sorted(cluster_given_letter[char])
     print 'Letter given cluster'
     for clust in letter_given_cluster:
-        print clust
+        print "CLUSTER:", clust
         print_dict_sorted(letter_given_cluster[clust])
 
     print 'Log likelihood given cluster: ', log_likeliness
