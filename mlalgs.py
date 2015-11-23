@@ -150,7 +150,13 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def get_features(data, starts):
+def get_features_fft(data, starts, ends):
+    features = []
+    for i,e in zip(starts, ends):
+        features.append(np.absolute(np.fft.fft(data[i:e])[0:300]))
+    return features
+
+def get_features_cepstrum(data, starts):
     '''Grab the features from a single keystroke'''
     # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
     # The definition of cepstrum
@@ -168,17 +174,31 @@ def get_features(data, starts):
     c = (np.absolute(np.fft.ifft(lf))**2)
     return np.log(c[0:50])
 
-def clusterize(ls, n=50):
-    '''Clusters the objects (np arrays) in ls into n clusters
+def get_features(data, starts, ends):
+    return get_features_fft(data, starts, ends)
+
+def clusterize(ls, num_clusters=50):
+    '''Clusters the objects (np arrays) in ls into clusters
     The current algorithm is k-means
     '''
     scaling = np.std(np.array(ls), axis=0)
     def distance(a, b):
         return np.linalg.norm((a-b)/scaling)
 
-    means = random.sample(ls, n)
+    n = len(ls[0])
+    m = len(ls)
+    means = random.sample(ls, num_clusters)
+    variances = [np.identity(n) for _ in range(m)]
     assignments = [0 for i in range(len(ls))]
     dead_cluster = {}
+
+    def var_sample(vect):
+        v = vect.reshape((len(vect),1))
+        return v.dot(v.T)
+
+    def scaled_norm(vect, variance):
+        v = vect.reshape((len(vect),1))
+        return v.T.dot(np.linalg.inv(variance)).dot(v)
 
     def get_closest_cluster(means, l):
         smallest_i = -1
@@ -186,6 +206,7 @@ def clusterize(ls, n=50):
         for i, m in enumerate(means):
             if i in dead_cluster:
                 continue
+            #e = np.linalg.norm(l-m)
             e = distance(l, m)
             if e < smallest_e or smallest_i == -1:
                 smallest_i = i
@@ -196,7 +217,7 @@ def clusterize(ls, n=50):
 
         changes = 0
         # E-step
-        z = [[] for _ in range(n)]
+        z = [[] for _ in range(num_clusters)]
         for (ind, l) in enumerate(ls):
             new_cluster = get_closest_cluster(means, l)
             z[new_cluster].append(l)
@@ -205,14 +226,16 @@ def clusterize(ls, n=50):
             assignments[ind] = new_cluster
 
         # M-step
-        for i in range(n):
+        for i in range(num_clusters):
             if len(z[i]) == 0:
                 dead_cluster[i] = True
 
             if i in dead_cluster:
                 continue
             means[i] = sum(item for item in z[i])/len(z[i])
+            variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
 
+        #print variances
         print "iteration:", j, "num_changes:", changes
         if changes < 5:
             break
