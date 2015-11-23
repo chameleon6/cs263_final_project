@@ -28,7 +28,7 @@ DATA_FILES = {
 file_range = (0, 1.0)
 
 USE_PCA = False
-DEBUG = True
+DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
     #'Segmentation Plot',
@@ -42,12 +42,13 @@ PRINT_SET = set([
 ])
 CURRENT_STAGE = 'Clustering' # or Segmentation, Feature, Clustering, HMM
 
-def cache_or_compute(fname, fun, *args):
-    if DEBUG:
+def cache_or_compute(fname, fun, *args, **kwargs):
+    if DEBUG or ("debug" in kwargs and kwargs["debug"]):
         c = fun(*args)
         np.save(fname, c)
         return c
     try:
+        print "using cache at", fname, "for", fun
         return np.load(fname)
     except IOError:
         c = fun(*args)
@@ -71,7 +72,7 @@ with open(DATA_FILES['text'], "r") as f:
 
 inds, ends, chunks = cache_or_compute(
     'cache/chunks.npy', lambda arg: get_chunk_starts_simpler(arg),
-    data[int(file_range[0] * len(data)): int(file_range[1] * len(data))])
+    data[int(file_range[0] * len(data)): int(file_range[1] * len(data))], debug=False)
 
 if not DEBUG:
     inds = inds.astype(int)
@@ -97,7 +98,7 @@ if CURRENT_STAGE == 'Segmentation':
 # Feature Extraction
 ###################################################################
 
-features = cache_or_compute('cache/features.npy', get_features, data, inds)
+features = cache_or_compute('cache/features.npy', get_features, data, inds, ends, debug=True)
 
 plot_group(PLOT_SET, 'Cepstrum Plot',
             #features[10],
@@ -129,7 +130,7 @@ if CURRENT_STAGE == 'Feature':
 # Clustering
 ###################################################################
 
-clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features)
+clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, debug=True)
 n_clusters = len(clusters)
 
 if 'Clustering' in PRINT_SET:

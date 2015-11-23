@@ -150,7 +150,13 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def get_features(data, starts):
+def get_features_fft(data, starts, ends):
+    features = []
+    for i,e in zip(starts, ends):
+        features.append(np.absolute(np.fft.fft(data[i:e])[0:300]))
+    return features
+
+def get_features_cepstrum(data, starts):
     '''Grab the features from a single keystroke'''
     # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
     # The definition of cepstrum
@@ -167,6 +173,9 @@ def get_features(data, starts):
     lf = np.log(f ** 2)
     c = (np.absolute(np.fft.ifft(lf))**2)
     return np.log(c[0:50])
+
+def get_features(data, starts, ends):
+    return get_features_fft(data, starts, ends)
 
 def clusterize(ls, num_clusters=50):
     '''Clusters the objects (np arrays) in ls into clusters
