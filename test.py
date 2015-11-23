@@ -13,7 +13,8 @@ from mlalgs import (
     get_features,
     clusterize,
     print_dict_sorted,
-    plot_group
+    plot_group,
+    baum_welch
 )
 
 ###################################################################
@@ -28,11 +29,11 @@ DATA_FILES = {
 file_range = (0, 1.0)
 
 USE_PCA = False
-DEBUG = True
+DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
     #'Segmentation Plot',
-    'Cepstrum Plot',
+    #'Cepstrum Plot',
     'PCA Plot',
 ])
 PRINT_SET = set([
@@ -40,7 +41,7 @@ PRINT_SET = set([
     'Feature',
     'Clustering',
 ])
-CURRENT_STAGE = 'Clustering' # or Segmentation, Feature, Clustering, HMM
+CURRENT_STAGE = 'HMM' # or Segmentation, Feature, Clustering, HMM
 
 def cache_or_compute(fname, fun, *args):
     if DEBUG:
@@ -76,18 +77,19 @@ inds, ends, chunks = cache_or_compute(
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
-N = 0
-M = 500000
-ii = np.zeros(len(data))
-ii[inds] = 1
-ii2 = np.zeros(len(data))
-ii2[ends] = 1
+if DEBUG:
+    N = 0
+    M = 500000
+    ii = np.zeros(len(data))
+    ii[inds] = 1
+    ii2 = np.zeros(len(data))
+    ii2[ends] = 1
 
-plot_group(PLOT_SET, 'Segmentation Plot',
-           np.log(np.abs(data[N:M])+0.01), np.log(max(data[N:M]) * ii[N:M]+0.01), -np.log(max(data[N:M]) * ii2[N:M]+0.01))
+    plot_group(PLOT_SET, 'Segmentation Plot',
+               np.log(np.abs(data[N:M])+0.01), np.log(max(data[N:M]) * ii[N:M]+0.01), -np.log(max(data[N:M]) * ii2[N:M]+0.01))
 
-if CURRENT_STAGE == 'Segmentation':
-    sys.exit()
+    if CURRENT_STAGE == 'Segmentation':
+        sys.exit()
 
 ###################################################################
 # Feature Extraction
@@ -151,22 +153,12 @@ if 'Clustering' in PRINT_SET:
 
     print 'Log likelihood given cluster: ', log_likeliness
 
+if CURRENT_STAGE == 'Clustering':
+    sys.exit()
+
 ###################################################################
 # HMM Coefficient computation
 ###################################################################
-
-freqs = {}
-for c in clusters:
-    if c not in freqs:
-        freqs[c] = 0
-    freqs[c] += 1
-
-rel_freqs = {}
-for c in freqs:
-    rel_freqs[c] = float(freqs[c])/n_clusters
-
-if CURRENT_STAGE == 'Clustering':
-    sys.exit()
 
 def compute_freq_dist(data):
     counts = {}
@@ -222,7 +214,20 @@ cache_or_compute("cache/next_letter_prob.npy", compute_bigram)
 ###################################################################
 
 pi, A = np.load("cache/next_letter_prob.npy").tolist()
+
 valid_letters = map(chr, range(97,123)) + [' ']
+
+pi_v = np.zeros(len(valid_letters))
+theta_v = np.zeros((len(valid_letters), len(valid_letters)))
+
+for i, c in enumerate(valid_letters):
+    pi_v[i] = pi[c]
+    for j, c2 in enumerate(valid_letters):
+        theta_v[i, j] = A[c][c2]
+
+baum_welch(pi_v, theta_v, clusters)
+
+
 n_letters = len(valid_letters)
 letters_typed = ['t','h','e',' ']  + [valid_letters[int(n_letters * random.random())] for i in range(n_clusters-4)]
 #letters_typed = [random.choice(['e','t','r','a','s',' ']) for i in range(n_clusters)]

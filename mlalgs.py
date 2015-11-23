@@ -226,3 +226,43 @@ def print_dict_sorted(d):
         l.append( '%s: %s' % (k, v))
     for i in range(0, len(l), 5):
         print '         '.join(l[i: i+5])
+
+def baum_welch(pi, theta, observations):
+    # Theta is transition probability: i-jth entry is transition from i to j
+    K = len(pi) # Number of hidden states
+    T = len(observations)
+    phi = np.random.rand(len(pi), 50)
+
+    for iteration in range(100):
+        # E-step
+        # First, the forward-backward algorithm
+        alpha = np.zeros((T, K))
+        scale = np.zeros(T)
+        alpha[0, :] = pi * phi[:, observations[0]]
+        scale[0] = np.sum(alpha[0, :])
+        alpha[0, :] = alpha[0, :] / scale[0]
+        for t in range(1, T):
+            alpha[t, :] = np.dot(alpha[t-1, :], theta) * phi[:, observations[t]]
+            scale[t] = np.sum(alpha[t, :])
+            alpha[t, :] = alpha[t, :]/scale[t]
+
+        beta = np.zeros((T, K))
+        beta[T-1, :] = 1
+        for t in range(T-2, -1, -1):
+            beta[t, :] = np.dot(theta, phi[:, observations[t+1]] * beta[t+1, :]) / scale[t+1]
+
+        gamma = alpha * beta
+        characteristic = np.zeros((T, 50))
+        for t, o in enumerate(observations):
+            characteristic[t, o] = 1
+
+        # M-step
+        phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
+        valid_letters = map(chr, range(97,123)) + [' ']
+        seq = []
+
+        for t in range(len(observations)):
+            seq.append(valid_letters[np.argmax(gamma[t, :])])
+        print 'Iteration ', iteration
+        print ''.join(seq)
+    return phi
