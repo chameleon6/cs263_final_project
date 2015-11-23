@@ -13,7 +13,8 @@ from mlalgs import (
     get_features,
     clusterize,
     print_dict_sorted,
-    plot_group
+    plot_group,
+    baum_welch
 )
 
 ###################################################################
@@ -40,7 +41,7 @@ PRINT_SET = set([
     'Feature',
     'Clustering',
 ])
-CURRENT_STAGE = 'Clustering' # or Segmentation, Feature, Clustering, HMM
+CURRENT_STAGE = 'HMM' # or Segmentation, Feature, Clustering, HMM
 
 def cache_or_compute(fname, fun, *args, **kwargs):
     if DEBUG or ("debug" in kwargs and kwargs["debug"]):
@@ -161,22 +162,12 @@ if 'Clustering' in PRINT_SET:
 
     print 'Log likelihood given cluster: ', log_likeliness
 
+if CURRENT_STAGE == 'Clustering':
+    sys.exit()
+
 ###################################################################
 # HMM Coefficient computation
 ###################################################################
-
-freqs = {}
-for c in clusters:
-    if c not in freqs:
-        freqs[c] = 0
-    freqs[c] += 1
-
-rel_freqs = {}
-for c in freqs:
-    rel_freqs[c] = float(freqs[c])/n_clusters
-
-if CURRENT_STAGE == 'Clustering':
-    sys.exit()
 
 def compute_freq_dist(data):
     counts = {}
@@ -232,7 +223,20 @@ cache_or_compute("cache/next_letter_prob.npy", compute_bigram)
 ###################################################################
 
 pi, A = np.load("cache/next_letter_prob.npy").tolist()
+
 valid_letters = map(chr, range(97,123)) + [' ']
+
+pi_v = np.zeros(len(valid_letters))
+theta_v = np.zeros((len(valid_letters), len(valid_letters)))
+
+for i, c in enumerate(valid_letters):
+    pi_v[i] = pi[c]
+    for j, c2 in enumerate(valid_letters):
+        theta_v[i, j] = A[c][c2]
+
+baum_welch(pi_v, theta_v, clusters)
+
+
 n_letters = len(valid_letters)
 letters_typed = ['t','h','e',' ']  + [valid_letters[int(n_letters * random.random())] for i in range(n_clusters-4)]
 #letters_typed = [random.choice(['e','t','r','a','s',' ']) for i in range(n_clusters)]
