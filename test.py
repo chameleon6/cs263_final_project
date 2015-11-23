@@ -15,14 +15,31 @@ from mlalgs import (
     plot_group
 )
 
+###################################################################
+# Constants and debugging control
+###################################################################
+
+DATA_FILES = {
+    'sound': 'sound2.wav', # sound1.wav
+    'text': 'text2.txt', # text1.txt
+}
+# the fraction of the file we use
+file_range = (0, 1.0)
+
 USE_PCA = False
 DEBUG = True
 # Which plots to actually plot.
 PLOT_SET = set([
-    'Segmentation Plot',
-    'Cepstrum Plot',
+    #'Segmentation Plot',
+    #'Cepstrum Plot',
     # 'PCA Plot',
 ])
+PRINT_SET = set([
+    'Segmentation',
+    'Feature',
+    'Clustering',
+])
+CURRENT_STAGE = 'Clustering' # or Segmentation, Feature, HMM
 
 def cache_or_compute(fname, fun, *args):
     if DEBUG:
@@ -36,60 +53,57 @@ def cache_or_compute(fname, fun, *args):
         np.save(fname, c)
         return c
 
-# np.set_printoptions(threshold=np.nan)
-
-rate, data = scipy.io.wavfile.read("long_test_2.wav")
+rate, data = scipy.io.wavfile.read(DATA_FILES['sound'])
 
 spaces = []
-with open("text.txt", "r") as f:
-    s = f.read()
-    for (i,c) in enumerate(s):
+text = ''
+with open(DATA_FILES['text'], "r") as f:
+    text = f.read()
+    for (i,c) in enumerate(text):
         if c == ' ':
             spaces.append(i)
 
-# the fraction of the file we use
-file_range = (0, 1.0)
+
+###################################################################
+# Segmentation
+###################################################################
 
 inds, ends, chunks = cache_or_compute(
     'cache/chunks.npy', lambda arg: get_chunk_starts_simpler(arg),
     data[int(file_range[0] * len(data)): int(file_range[1] * len(data))])
 
-'''
-chunk_lens = [len(c) for c in chunks]
-chunk_maxs = [max(c) for c in chunks]
-inds = []
-last_ind = 0
-for l in chunk_lens:
-    last_ind += l
-    inds.append(last_ind)
-'''
+if 'Segmentation' in PRINT_SET:
+    print "num_chunks", len(chunks)
 
-print "num_chunks", len(chunks)
-# segmentation plot
 N = 0
 M = 500000
 ii = np.zeros(len(data))
 ii[inds] = 1
 ii2 = np.zeros(len(data))
 ii2[ends] = 1
-#ft_data, raw = stft(data[N:M])
-#plt.plot(ft_data/np.max(ft_data))
-#plt.plot(data[N:M:221]/float(np.max(data[N:M]))*4, "r")
 
 plot_group(PLOT_SET, 'Segmentation Plot',
            np.log(np.abs(data[N:M])+0.01), np.log(max(data[N:M]) * ii[N:M]+0.01), -np.log(max(data[N:M]) * ii2[N:M]+0.01))
+
+if CURRENT_STAGE == 'Segmentation':
+    sys.exit()
+
+###################################################################
+# Feature Extraction
+###################################################################
 
 features = cache_or_compute('cache/features.npy', lambda ls: map(get_features, ls), chunks)
 
 plot_group(PLOT_SET, 'Cepstrum Plot',
            features[spaces[0]],
            features[spaces[1]],
-           features[spaces[2]])
+           features[0])
 
 if USE_PCA:
     pca = PCA(n_components=20)
     pca.fit(features)
-    print pca.explained_variance_ratio_
+    if 'Feature' in PRINT_SET:
+        print pca.explained_variance_ratio_
     features = pca.transform(features)
     plot_group(PLOT_SET, 'PCA Plot',
                features[spaces[0]],
@@ -98,9 +112,41 @@ if USE_PCA:
                features[spaces[3]],
                features[spaces[4]])
 
+if CURRENT_STAGE == 'Feature':
+    sys.exit()
+
+###################################################################
+# Clustering
+###################################################################
+
 clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features)
 n_clusters = len(clusters)
-print clusters[:300]
+
+if 'Clustering' in PRINT_SET:
+    print zip(text, clusters)
+    cluster_given_letter = {}
+    letter_given_cluster = {}
+
+    for char, clust in zip(text, clusters):
+        if char not in cluster_given_letter:
+            cluster_given_letter[char] = {}
+        if clust not in letter_given_cluster:
+            letter_given_cluster[clust] = {}
+        cluster_given_letter[char][clust] = cluster_given_letter[char].get(clust, 0) + 1
+        letter_given_cluster[clust][char] = letter_given_cluster[clust].get(char, 0) + 1
+
+    print 'Cluster given letter'
+    for char in cluster_given_letter:
+        print char
+        print_dict_sorted(cluster_given_letter[char])
+    print 'Letter given cluster'
+    for clust in letter_given_cluster:
+        print clust
+        print_dict_sorted(letter_given_cluster[clust])
+
+###################################################################
+# HMM Coefficient computation
+###################################################################
 
 freqs = {}
 for c in clusters:
@@ -112,40 +158,8 @@ rel_freqs = {}
 for c in freqs:
     rel_freqs[c] = float(freqs[c])/n_clusters
 
-#sys.exit()
-
-#plt.bar([i[0] for i in freqs.items()], [i[1] for i in freqs.items()])
-#plt.show()
-
-#cluster_dists = [[np.linalg.norm(i-j) for j in means] for i in means]
-#cluster_dists_sorted = [(cluster_dists[ni][nj], ni, nj)
-#        for ni in range(50) for nj in range(ni)]
-#cluster_dists_sorted.sort()
-
-cluster_dists = sorted([(sum(np.linalg.norm(i-j) for j in means), freqs[ni], ni)
-    for (ni,i) in enumerate(means)])
-
-space_freqs = {}
-for ind in spaces:
-    if ind > len(clusters)-1: break
-    c = clusters[ind]
-    if c not in space_freqs:
-        space_freqs[c] = 0
-    space_freqs[c] += 1
-
-rel_freqs = {}
-for c in space_freqs:
-    rel_freqs[c] = float(space_freqs[c])/freqs[c] if freqs[c] > 0 else 0
-
-print 'Freqs'
-print
-print_dict_sorted(freqs)
-print 'Space Freqs'
-print
-print_dict_sorted(space_freqs)
-print 'Rel Freqs'
-print
-print_dict_sorted(rel_freqs)
+if CURRENT_STAGE == 'Clustering':
+    sys.exit()
 
 def compute_freq_dist(data):
     counts = {}
@@ -195,6 +209,10 @@ def compute_bigram():
         return compute_freq_dist(letter_pairs[inds])
 
 cache_or_compute("cache/next_letter_prob.npy", compute_bigram)
+
+###################################################################
+# HMM Viterbi
+###################################################################
 
 pi, A = np.load("cache/next_letter_prob.npy").tolist()
 valid_letters = map(chr, range(97,123)) + [' ']

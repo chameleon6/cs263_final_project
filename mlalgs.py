@@ -65,10 +65,14 @@ def get_chunk_starts_simpler(data):
             last_max = current_max
 
     last_start = 0
-    for i in data_chunks:
-        last_start += len(i)
+    for i, chunk in enumerate(data_chunks):
+        last_start += len(chunk)
+        if last_start >= len(data) - 5:
+            del data_chunks[i]
+            break
         starts.append(last_start)
-        ends.append(last_start + average_keypress_len)
+        ends.append(min(last_start + average_keypress_len, len(data)-1))
+        data_chunks[i] = chunk[:average_keypress_len]
 
     #return data, is_start, np.array(data_chunks)
     return starts, ends, np.array(data_chunks)
@@ -86,20 +90,21 @@ def get_chunk_starts(data):
     hopsamp = int(0.005 * 44100)
     power = power_graph(data)
     intervals = []
-    min_size = 40
-    max_size = 54
+    min_size = 30
+    max_size = 50
     before_peak = 6
     win = np.ones(min_size)/float(min_size)
-    thresh1 = sorted(power)[int(0.65 * len(power))]
-    thresh2 = sorted(power)[int(0.6 * len(power))]
-    thresh3 = sorted(power)[int(0.5 * len(power))]
+    p_sort = sorted(power)
+    thresh1 = p_sort[int(0.8 * len(power))]
+    thresh2 = p_sort[int(0.55* len(power))]
+    thresh3 = p_sort[int(0.5 * len(power))]
+
     peaks = np.argwhere(power > thresh1)
 
     starts = []
     ends = []
     data_chunks=[]
     #plt.plot(np.log(power))
-    #plt.plot(np.log(averages))
     #plt.plot(np.log(np.ones(len(power))*thresh1))
     #ii = np.zeros(len(power))
     #ii[peaks] = 14
@@ -110,22 +115,35 @@ def get_chunk_starts(data):
             continue
         begin = p - min_size/2 - 1
         best_center = 0
+        best_size = 0
         center_val = 0
         s = np.sum(power[begin:begin+min_size])
         for center in range(p, p+max_size/2):
-            begin = center - min_size/2
-            s = s - power[begin-1] + power[begin+min_size]
-            if s > center_val:
-                best_center = center
-                center_val = s
-        for size in range(min_size, max_size, 2):
-            begin = best_center - size/2
-            if np.any(power[begin: begin+size] < thresh2):
-                break
-
-        power[begin:begin+size] = thresh3
+            size1 = min_size
+            if ends:
+                size2 = min(max_size, 2 * (center - ends[-1]/hopsamp))
+            else:
+                size2 = max_size
+            for size in range(size1, size2, 2):
+                begin = center - size/2
+                if power[begin+size] > thresh1:
+                    break
+                sl = power[begin:begin+size]
+                s = np.sum(sl)
+                if len(np.where(sl < thresh2)) > 0.05 * size and size > size1:
+                    break
+                if s > center_val and begin >= p:
+                    best_center = center
+                    best_size = size
+                    center_val = s
+        if ends:
+            msize = min(max_size, 2 * (center - ends[-1]/hopsamp))
+        else:
+            msize = max_size
+        begin = best_center - best_size/2
+        power[begin:begin+best_size] = thresh3
         begin = hopsamp * begin
-        end = begin + hopsamp * (size)
+        end = begin + hopsamp * (best_size)
         starts.append(begin)
         ends.append(end)
         data_chunks.append(data[begin:end])
@@ -144,7 +162,7 @@ def get_features(chunk):
     f=np.absolute(np.fft.fft(chunk, n=500))
     lf = np.log(f ** 2 + 0.0001)
     c = (np.absolute(np.fft.ifft(lf))**2)
-    return c[1:30]
+    return c[0:30]
 
 def clusterize(ls, n=50):
     '''Clusters the objects (np arrays) in ls into n clusters
