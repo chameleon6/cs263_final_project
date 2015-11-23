@@ -152,17 +152,14 @@ def get_chunk_starts(data):
 
 def get_features(chunk):
     '''Grab the features from a single keystroke'''
+    # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
     # The definition of cepstrum
-    #f = mfcc(chunk)
-    #return np.concatenate((f[0], f[1]))
-    chunk = chunk[0:-500]
-    max_ind = np.argmax(chunk)
-    if max_ind < 0.2 * len(chunk):
-        chunk = chunk[max_ind:]
-    f=np.absolute(np.fft.fft(chunk, n=500))
-    lf = np.log(f ** 2 + 0.0001)
+    f = mfcc(chunk, samplerate=44100, winlen=0.5, numcep=13)
+    return f[0]
+    f=np.absolute(np.fft.fft(chunk, n=256))
+    lf = np.log(f ** 2)
     c = (np.absolute(np.fft.ifft(lf))**2)
-    return c[0:30]
+    return np.log(c[0:50])
 
 def clusterize(ls, n=50):
     '''Clusters the objects (np arrays) in ls into n clusters
@@ -214,5 +211,8 @@ def clusterize(ls, n=50):
 
 
 def print_dict_sorted(d):
+    l = []
     for v, k in sorted((v, k) for k, v in d.items()):
-        print '%s: %s' % (k, v)
+        l.append( '%s: %s' % (k, v))
+    for i in range(0, len(l), 5):
+        print '         '.join(l[i: i+5])

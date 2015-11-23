@@ -31,15 +31,15 @@ DEBUG = True
 # Which plots to actually plot.
 PLOT_SET = set([
     #'Segmentation Plot',
-    #'Cepstrum Plot',
-    # 'PCA Plot',
+    'Cepstrum Plot',
+    'PCA Plot',
 ])
 PRINT_SET = set([
     'Segmentation',
     'Feature',
     'Clustering',
 ])
-CURRENT_STAGE = 'Clustering' # or Segmentation, Feature, HMM
+CURRENT_STAGE = 'Clustering' # or Segmentation, Feature, Clustering, HMM
 
 def cache_or_compute(fname, fun, *args):
     if DEBUG:
@@ -98,9 +98,10 @@ plot_group(PLOT_SET, 'Cepstrum Plot',
            features[spaces[0]],
            features[spaces[1]],
            features[0])
+features = np.array(features)
 
 if USE_PCA:
-    pca = PCA(n_components=20)
+    pca = PCA(n_components=10)
     pca.fit(features)
     if 'Feature' in PRINT_SET:
         print pca.explained_variance_ratio_
@@ -108,9 +109,7 @@ if USE_PCA:
     plot_group(PLOT_SET, 'PCA Plot',
                features[spaces[0]],
                features[spaces[1]],
-               features[spaces[2]],
-               features[spaces[3]],
-               features[spaces[4]])
+               features[0])
 
 if CURRENT_STAGE == 'Feature':
     sys.exit()
