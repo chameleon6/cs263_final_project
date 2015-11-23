@@ -161,14 +161,25 @@ def get_features(chunk):
     c = (np.absolute(np.fft.ifft(lf))**2)
     return np.log(c[0:50])
 
-def clusterize(ls, n=50):
-    '''Clusters the objects (np arrays) in ls into n clusters
+def clusterize(ls, num_clusters=50):
+    '''Clusters the objects (np arrays) in ls into clusters
     The current algorithm is k-means
     '''
 
-    means = random.sample(ls, n)
+    n = len(ls[0])
+    m = len(ls)
+    means = random.sample(ls, num_clusters)
+    variances = [np.identity(n) for _ in range(m)]
     assignments = [0 for i in range(len(ls))]
     dead_cluster = {}
+
+    def var_sample(vect):
+        v = vect.reshape((len(vect),1))
+        return v.dot(v.T)
+
+    def scaled_norm(vect, variance):
+        v = vect.reshape((len(vect),1))
+        return v.T.dot(np.linalg.inv(variance)).dot(v)
 
     def get_closest_cluster(means, l):
         smallest_i = -1
@@ -176,7 +187,8 @@ def clusterize(ls, n=50):
         for i, m in enumerate(means):
             if i in dead_cluster:
                 continue
-            e = np.linalg.norm(l-m)
+            #e = np.linalg.norm(l-m)
+            e = scaled_norm(l-m, variances[i])
             if e < smallest_e or smallest_i == -1:
                 smallest_i = i
                 smallest_e = e
@@ -186,7 +198,7 @@ def clusterize(ls, n=50):
 
         changes = 0
         # E-step
-        z = [[] for _ in range(n)]
+        z = [[] for _ in range(num_clusters)]
         for (ind, l) in enumerate(ls):
             new_cluster = get_closest_cluster(means, l)
             z[new_cluster].append(l)
@@ -195,14 +207,16 @@ def clusterize(ls, n=50):
             assignments[ind] = new_cluster
 
         # M-step
-        for i in range(n):
+        for i in range(num_clusters):
             if len(z[i]) == 0:
                 dead_cluster[i] = True
 
             if i in dead_cluster:
                 continue
             means[i] = sum(item for item in z[i])/len(z[i])
+            variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
 
+        #print variances
         print "iteration:", j, "num_changes:", changes
         if changes < 5:
             break

@@ -44,7 +44,7 @@ CURRENT_STAGE = 'Clustering' # or Segmentation, Feature, Clustering, HMM
 def cache_or_compute(fname, fun, *args):
     if DEBUG:
         c = fun(*args)
-        #np.save(fname, c)
+        np.save(fname, c)
         return c
     try:
         return np.load(fname)
@@ -72,6 +72,10 @@ inds, ends, chunks = cache_or_compute(
     'cache/chunks.npy', lambda arg: get_chunk_starts_simpler(arg),
     data[int(file_range[0] * len(data)): int(file_range[1] * len(data))])
 
+if not DEBUG:
+    inds = inds.astype(int)
+    ends = ends.astype(int)
+
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
@@ -95,9 +99,16 @@ if CURRENT_STAGE == 'Segmentation':
 features = cache_or_compute('cache/features.npy', lambda ls: map(get_features, ls), chunks)
 
 plot_group(PLOT_SET, 'Cepstrum Plot',
+            #features[10],
+            #features[11],
+            #features[12],
+            #features[13]
+
            features[spaces[0]],
            features[spaces[1]],
-           features[0])
+           features[spaces[2]],
+           features[spaces[3]],
+           )
 features = np.array(features)
 
 if USE_PCA:
