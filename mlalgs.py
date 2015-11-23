@@ -150,12 +150,19 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def get_features(chunk):
+def get_features(data, starts):
     '''Grab the features from a single keystroke'''
     # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
     # The definition of cepstrum
-    f = mfcc(chunk, samplerate=44100, winlen=0.5, numcep=13)
-    return f[0]
+    f = mfcc(data, samplerate=44100, winlen=0.1, winstep=0.025, numcep=16, nfilt=32, appendEnergy=False)
+    ans = []
+    print len(f)
+    print len(data)/(44100*0.025)
+    for s in starts:
+        b = int(s / (44100*0.025))
+        ans.append(np.concatenate((f[b], f[b+1], f[b+2], f[b+3])))
+    return ans
+    return np.concatenate((f[0], f[1], f[2]))
     f=np.absolute(np.fft.fft(chunk, n=256))
     lf = np.log(f ** 2)
     c = (np.absolute(np.fft.ifft(lf))**2)
@@ -165,6 +172,9 @@ def clusterize(ls, num_clusters=50):
     '''Clusters the objects (np arrays) in ls into clusters
     The current algorithm is k-means
     '''
+    scaling = np.std(np.array(ls), axis=0)
+    def distance(a, b):
+        return np.linalg.norm((a-b)/scaling)
 
     n = len(ls[0])
     m = len(ls)
@@ -188,7 +198,7 @@ def clusterize(ls, num_clusters=50):
             if i in dead_cluster:
                 continue
             #e = np.linalg.norm(l-m)
-            e = scaled_norm(l-m, variances[i])
+            e = distance(l, m)
             if e < smallest_e or smallest_i == -1:
                 smallest_i = i
                 smallest_e = e
