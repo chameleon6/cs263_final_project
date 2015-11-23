@@ -1,4 +1,5 @@
 import sys
+import math
 import scipy.io.wavfile
 import numpy as np
 import matplotlib.pyplot as plt
@@ -92,12 +93,12 @@ if CURRENT_STAGE == 'Segmentation':
 # Feature Extraction
 ###################################################################
 
-features = cache_or_compute('cache/features.npy', lambda ls: map(get_features, ls), chunks)
+features = cache_or_compute('cache/features.npy', get_features, data, inds)
 
 plot_group(PLOT_SET, 'Cepstrum Plot',
            features[spaces[0]],
-           features[spaces[1]],
-           features[0])
+           features[spaces[1]], features[spaces[2]],
+           features[0], features[1])
 features = np.array(features)
 
 if USE_PCA:
@@ -109,7 +110,8 @@ if USE_PCA:
     plot_group(PLOT_SET, 'PCA Plot',
                features[spaces[0]],
                features[spaces[1]],
-               features[0])
+               features[spaces[2]],
+               features[0], features[1])
 
 if CURRENT_STAGE == 'Feature':
     sys.exit()
@@ -126,6 +128,7 @@ if 'Clustering' in PRINT_SET:
     cluster_given_letter = {}
     letter_given_cluster = {}
 
+    log_likeliness = 0
     for char, clust in zip(text, clusters):
         if char not in cluster_given_letter:
             cluster_given_letter[char] = {}
@@ -133,6 +136,9 @@ if 'Clustering' in PRINT_SET:
             letter_given_cluster[clust] = {}
         cluster_given_letter[char][clust] = cluster_given_letter[char].get(clust, 0) + 1
         letter_given_cluster[clust][char] = letter_given_cluster[clust].get(char, 0) + 1
+    for char, clust in zip(text, clusters):
+        s = sum(letter_given_cluster[clust].values())
+        log_likeliness += math.log(letter_given_cluster[clust][char]/float(s))
 
     print 'Cluster given letter'
     for char in cluster_given_letter:
@@ -142,6 +148,8 @@ if 'Clustering' in PRINT_SET:
     for clust in letter_given_cluster:
         print clust
         print_dict_sorted(letter_given_cluster[clust])
+
+    print 'Log likelihood given cluster: ', log_likeliness
 
 ###################################################################
 # HMM Coefficient computation
