@@ -32,8 +32,8 @@ USE_PCA = False
 DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
-    #'Segmentation Plot',
-    #'Cepstrum Plot',
+    'Segmentation Plot',
+    'Cepstrum Plot',
     'PCA Plot',
 ])
 PRINT_SET = set([
@@ -41,7 +41,7 @@ PRINT_SET = set([
     'Feature',
     'Clustering',
 ])
-CURRENT_STAGE = 'HMM' # or Segmentation, Feature, Clustering, HMM
+CURRENT_STAGE = 'Segmentation' # or Segmentation, Feature, Clustering, HMM
 
 def cache_or_compute(fname, fun, *args, **kwargs):
     if DEBUG or ("debug" in kwargs and kwargs["debug"]):
@@ -57,15 +57,16 @@ def cache_or_compute(fname, fun, *args, **kwargs):
         return c
 
 rate, data = scipy.io.wavfile.read(DATA_FILES['sound'])
+#data_end = len(data) - 50000
+#data = np.abs(data[:data_end] + 0.01)
 
 spaces = []
 text = ''
 with open(DATA_FILES['text'], "r") as f:
-    text = f.read()
+    text = f.read().strip()
     for (i,c) in enumerate(text):
         if c == ' ':
             spaces.append(i)
-
 
 ###################################################################
 # Segmentation
@@ -75,22 +76,54 @@ inds, ends, chunks = cache_or_compute(
     'cache/chunks.npy', lambda arg: get_chunk_starts_simpler(arg),
     data[int(file_range[0] * len(data)): int(file_range[1] * len(data))], debug=False)
 
-if not DEBUG:
+if not isinstance(inds, list):
     inds = inds.astype(int)
     ends = ends.astype(int)
 
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
-N = 0
-M = 1000000
+#N, M = len(data) - 500000, len(data)
+N, M = 0, 1000000
 ii = np.zeros(len(data))
 ii[inds] = 1
 ii2 = np.zeros(len(data))
 ii2[ends] = 1
 
+plot_ind_start = None
+plot_ind_end = None
+for i,v in enumerate(inds):
+    if v > N and plot_ind_start == None:
+        plot_ind_start = i
+    if v > M:
+        plot_ind_end = i+1
+        break
+
+chunk_lens = map(lambda (x,y): x-y, zip(np.append(inds[1:], [len(data)]), inds))
+spacinesses = np.array(map(sum, zip([0] + chunk_lens, chunk_lens)))
+space_thresh = sorted(spacinesses)[int(0.6 * len(spacinesses))]
+space_guesses_from_time = []
+for i,v in enumerate(spacinesses):
+    if v > space_thresh:
+        should_append = True
+        if len(space_guesses_from_time) > 0 and space_guesses_from_time[-1] == i-1:
+            if v < spacinesses[i-1]:
+                should_append = False
+            else:
+                space_guesses_from_time = space_guesses_from_time[:-1]
+        if should_append:
+            space_guesses_from_time.append(i)
+
 plot_group(PLOT_SET, 'Segmentation Plot',
-           np.log(np.abs(data[N:M])+0.01), np.log(max(data[N:M]) * ii[N:M]+0.01), -np.log(max(data[N:M]) * ii2[N:M]+0.01))
+           np.log(np.abs(data[N:M]+0.01)),
+           np.log(max(data[N:M]) * ii[N:M]+0.01),
+           -np.log(max(data[N:M]) * ii2[N:M]+0.01),
+           #(np.array(inds[plot_ind_start:plot_ind_end]) - N,
+           #    [np.log(max(chunk)+0.01) for chunk in chunks[plot_ind_start:plot_ind_end]]),
+           (np.array(inds[plot_ind_start:plot_ind_end]) - N,
+               spacinesses[plot_ind_start:plot_ind_end]/1600),
+           np.ones(M-N)*space_thresh/1600
+           )
 
 if CURRENT_STAGE == 'Segmentation':
     sys.exit()

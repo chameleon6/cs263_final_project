@@ -14,7 +14,10 @@ def plot_group(plot_set, title, *args):
     colors = ['r', 'g', 'b', 'c', 'm', 'k', 'y']
     plt.clf()
     for a, c in zip(args, colors):
-        plt.plot(a, c)
+        if isinstance(a, tuple):
+            plt.plot(a[0], a[1], c)
+        else:
+            plt.plot(a, c)
     plt.title(title)
     plt.show()
 
