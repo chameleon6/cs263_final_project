@@ -83,6 +83,22 @@ if not isinstance(inds, list):
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
+chunk_lens = map(lambda (x,y): x-y, zip(np.append(inds[1:], [len(data)]), inds))
+spacinesses = np.array(map(sum, zip([0] + chunk_lens, chunk_lens)))
+space_thresh = sorted(spacinesses)[int(0.6 * len(spacinesses))]
+space_guesses_from_time = []
+
+for i,v in enumerate(spacinesses):
+    if v > space_thresh:
+        should_append = True
+        if len(space_guesses_from_time) > 0 and space_guesses_from_time[-1] == i-1:
+            if v < spacinesses[i-1]:
+                should_append = False
+            else:
+                space_guesses_from_time = space_guesses_from_time[:-1]
+        if should_append:
+            space_guesses_from_time.append(i)
+
 #N, M = len(data) - 500000, len(data)
 N, M = 0, 1000000
 ii = np.zeros(len(data))
@@ -99,24 +115,15 @@ for i,v in enumerate(inds):
         plot_ind_end = i+1
         break
 
-chunk_lens = map(lambda (x,y): x-y, zip(np.append(inds[1:], [len(data)]), inds))
-spacinesses = np.array(map(sum, zip([0] + chunk_lens, chunk_lens)))
-space_thresh = sorted(spacinesses)[int(0.6 * len(spacinesses))]
-space_guesses_from_time = []
-for i,v in enumerate(spacinesses):
-    if v > space_thresh:
-        should_append = True
-        if len(space_guesses_from_time) > 0 and space_guesses_from_time[-1] == i-1:
-            if v < spacinesses[i-1]:
-                should_append = False
-            else:
-                space_guesses_from_time = space_guesses_from_time[:-1]
-        if should_append:
-            space_guesses_from_time.append(i)
+ii_space = np.zeros(len(data))
+
+starts = np.array(inds)[space_guesses_from_time]
+for i in starts:
+    ii_space[i] = 1
 
 plot_group(PLOT_SET, 'Segmentation Plot',
            np.log(np.abs(data[N:M]+0.01)),
-           np.log(max(data[N:M]) * ii[N:M]+0.01),
+           np.log(max(data[N:M]) * ii_space[N:M]+0.01),
            -np.log(max(data[N:M]) * ii2[N:M]+0.01),
            #(np.array(inds[plot_ind_start:plot_ind_end]) - N,
            #    [np.log(max(chunk)+0.01) for chunk in chunks[plot_ind_start:plot_ind_end]]),
