@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import cPickle as pickle
 import random
 from sklearn.decomposition import PCA
+import re
 
 from mlalgs import (
     get_chunk_starts,
@@ -14,7 +15,8 @@ from mlalgs import (
     clusterize,
     print_dict_sorted,
     plot_group,
-    baum_welch
+    baum_welch,
+    longest_common_subseq
 )
 
 ###################################################################
@@ -22,8 +24,8 @@ from mlalgs import (
 ###################################################################
 
 DATA_FILES = {
-    'sound': 'sound3.wav', # sound1.wav
-    'text': 'text3.txt', # text1.txt
+    'sound': 'sound5.wav', # sound1.wav
+    'text': 'text5.txt', # text1.txt
 }
 # the fraction of the file we use
 file_range = (0, 1.0)
@@ -57,21 +59,22 @@ def cache_or_compute(fname, fun, *args, **kwargs):
         return c
 
 rate, data = scipy.io.wavfile.read(DATA_FILES['sound'])
+#data_end = len(data) - 50000
+#data = np.abs(data[:data_end] + 0.01)
 
 data = data.astype(float)
 
 # Convert stereo to mono
-if data.shape[1] == 2:
+if len(data.shape) == 2 and data.shape[1] == 2:
     data = (data[:, 0] + data[:, 1])/2
 
 spaces = []
 text = ''
 with open(DATA_FILES['text'], "r") as f:
-    text = f.read()
+    text = f.read().strip()
     for (i,c) in enumerate(text):
         if c == ' ':
             spaces.append(i)
-
 
 ###################################################################
 # Segmentation
@@ -81,23 +84,84 @@ inds, ends, chunks = cache_or_compute(
     'cache/chunks.npy', lambda arg: get_chunk_starts(arg),
     data[int(file_range[0] * len(data)): int(file_range[1] * len(data))], debug=False)
 
+if not isinstance(inds, list):
+    inds = inds.astype(int)
+    ends = ends.astype(int)
 
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
-if DEBUG:
-    N = 0
-    M = 500000
-    ii = np.zeros(len(data))
-    ii[inds] = 1
-    ii2 = np.zeros(len(data))
-    ii2[ends] = 1
+chunk_lens = map(lambda (x,y): x-y, zip(np.append(inds[1:], [len(data)]), inds))
+spacinesses = np.array([x+y for (x,y) in zip([0] + chunk_lens, chunk_lens)])
+space_thresh = sorted(spacinesses)[int(0.5 * len(spacinesses))]
+space_guesses_from_time = []
 
-    plot_group(PLOT_SET, 'Segmentation Plot',
-               np.log(np.abs(data[N:M])+0.01), np.log(max(data[N:M]) * ii[N:M]+0.01), -np.log(max(data[N:M]) * ii2[N:M]+0.01))
+for i,v in enumerate(spacinesses):
+    if v > space_thresh:
+        should_append = True
+        if len(space_guesses_from_time) > 0 and space_guesses_from_time[-1] == i-1:
+            if v < spacinesses[i-1]:
+                should_append = False
+            else:
+                space_guesses_from_time = space_guesses_from_time[:-1]
+        if should_append:
+            space_guesses_from_time.append(i)
 
-    if CURRENT_STAGE == 'Segmentation':
-        sys.exit()
+#N, M = len(data) - 500000, len(data)
+N, M = 0, 1000000
+ii = np.zeros(len(data))
+ii[inds] = 1
+ii2 = np.zeros(len(data))
+ii2[ends] = 1
+
+plot_ind_start = None
+plot_ind_end = None
+for i,v in enumerate(inds):
+    if v > N and plot_ind_start == None:
+        plot_ind_start = i
+    if v > M:
+        plot_ind_end = i+1
+        break
+
+ii_space = np.zeros(len(data))
+
+typed_words = text.split(' ')
+typed_lens = map(len, typed_words)
+guessed_lens = [x-y-1 for (x,y) in zip(space_guesses_from_time, [-1] + space_guesses_from_time)]
+typed_lens = np.array(typed_lens)
+guessed_lens = np.array(guessed_lens)
+print "actual word lens:"
+print typed_lens
+print "guessed lens:"
+print guessed_lens
+
+typed_word_inds, guessed_word_inds, good_word_lens = longest_common_subseq(typed_lens, guessed_lens)
+starts = np.array(inds)[space_guesses_from_time]
+supervised_train_data = []
+
+for t,g,l in zip(typed_word_inds, guessed_word_inds, good_word_lens):
+    real_word = typed_words[t]
+    this_chunk = space_guesses_from_time[g-1]+1 if g > 0 else 0
+    print real_word, this_chunk
+    for i in range(l):
+        supervised_train_data.append((real_word[i], chunks[this_chunk + i]))
+
+for i in starts:
+    ii_space[i] = 1
+
+plot_group(PLOT_SET, 'Segmentation Plot',
+           np.log(np.abs(data[N:M]+0.01)),
+           np.log(max(data[N:M]) * ii_space[N:M]+0.01),
+           -np.log(max(data[N:M]) * ii2[N:M]+0.01),
+           #(np.array(inds[plot_ind_start:plot_ind_end]) - N,
+           #    [np.log(max(chunk)+0.01) for chunk in chunks[plot_ind_start:plot_ind_end]]),
+           (np.array(inds[plot_ind_start:plot_ind_end]) - N,
+               spacinesses[plot_ind_start:plot_ind_end]/1600),
+           np.ones(M-N)*space_thresh/1600
+           )
+
+if CURRENT_STAGE == 'Segmentation':
+    sys.exit()
 
 ###################################################################
 # Feature Extraction
@@ -150,17 +214,17 @@ if 'Clustering' in PRINT_SET:
             letter_given_cluster[clust] = {}
         cluster_given_letter[char][clust] = cluster_given_letter[char].get(clust, 0) + 1
         letter_given_cluster[clust][char] = letter_given_cluster[clust].get(char, 0) + 1
-    for char, clust in zip(text, clusters):
+    for char, clust in zip(text, clusters)[:60]: # not sure when we make first chunk mistake
         s = sum(letter_given_cluster[clust].values())
         log_likeliness += math.log(letter_given_cluster[clust][char]/float(s))
 
     print 'Cluster given letter'
     for char in cluster_given_letter:
-        print char
+        print "CHARACTER:", char
         print_dict_sorted(cluster_given_letter[char])
     print 'Letter given cluster'
     for clust in letter_given_cluster:
-        print clust
+        print "CLUSTER:", clust
         print_dict_sorted(letter_given_cluster[clust])
 
     print 'Log likelihood given cluster: ', log_likeliness
@@ -196,12 +260,8 @@ def compute_freq_dist(data):
         for o in freq[i]:
             freq[i][o] /= float(counts[i])
 
-    total = 0
     for c in counts:
-        total += counts[c]
-
-    for c in counts:
-        counts[c] /= float(total)
+        counts[c] /= float(sum(counts.values()))
 
     return counts, freq
 
@@ -211,13 +271,10 @@ def compute_bigram():
     valid_letters = map(chr, range(97,123)) + [' ']
     with open("full_text.txt", "r") as f:
         s = f.read().lower()
+        s = re.sub('[^a-z ]', ' ', s)
+        s = re.sub(' +', ' ', s)
         letter_pairs = np.array(zip(s, s[1:]))
-        inds = np.array([True for i in range(len(letter_pairs))])
-        for i, (c1,c2) in enumerate(letter_pairs):
-            if c1 not in valid_letters or c2 not in valid_letters:
-                inds[i] = False
-
-        return compute_freq_dist(letter_pairs[inds])
+        return compute_freq_dist(letter_pairs)
 
 pi, A = cache_or_compute("cache/next_letter_prob.npy", compute_bigram)
 

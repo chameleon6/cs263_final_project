@@ -8,13 +8,56 @@ from sklearn.decomposition import PCA
 from python_speech_features.features import mfcc
 from scipy import signal
 
+def longest_common_subseq(list1, list2):
+    # returns indices of each list which correspond to the LCS
+    m,n = len(list1), len(list2)
+    lcs_len = [[None for _ in range(n+1)] for _ in range(m+1)]
+    lcs_action = [[None for _ in range(n+1)] for _ in range(m+1)] # used to reconstruct lcs
+    for i in range(n+1):
+        lcs_len[0][i] = 0
+    for i in range(m+1):
+        lcs_len[i][0] = 0
+
+    for i in range(1,m+1):
+        for j in range(1, n+1):
+            options = [(lcs_len[i-1][j], "discard1"), (lcs_len[i][j-1], "discard2")]
+            if list1[i-1] == list2[j-1]:
+                options.append((lcs_len[i-1][j-1]+1, "match"))
+            res = max(options)
+            lcs_len[i][j] = res[0]
+            lcs_action[i][j] = res[1]
+
+    ci, cj = m, n
+    list1_inds = []
+    list2_inds = []
+    while ci > 0 and cj > 0:
+        ac = lcs_action[ci][cj]
+        assert ac in ["discard1", "discard2", "match"]
+        if ac == "discard1":
+            ci -= 1
+        elif ac == "discard2":
+            cj -= 1
+        else:
+            assert list1[ci-1] == list2[cj-1]
+            list1_inds.append(ci-1)
+            list2_inds.append(cj-1)
+            ci -= 1
+            cj -= 1
+
+    list1_inds.reverse()
+    list2_inds.reverse()
+    return list1_inds, list2_inds, np.array(list1)[list1_inds]
+
 def plot_group(plot_set, title, *args):
     if title not in plot_set:
         return
     colors = ['r', 'g', 'b', 'c', 'm', 'k', 'y']
     plt.clf()
     for a, c in zip(args, colors):
-        plt.plot(a, c)
+        if isinstance(a, tuple):
+            plt.plot(a[0], a[1], c)
+        else:
+            plt.plot(a, c)
     plt.title(title)
     plt.show()
 
@@ -148,13 +191,25 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
+def binom_kernel(n):
+    kernel = [1.0]
+    for i in range(n):
+        k1 = [0]
+        k1.extend(kernel)
+        k2 = kernel[:]
+        k2.append(0)
+        kernel = [(x+y)/2 for x,y in zip(k1, k2)]
+
+    return np.array(kernel)
+
 def get_features_fft(data, starts, ends):
+    kernel_len = 100
     features = []
+    kernel = binom_kernel(kernel_len)
     for i,e in zip(starts, ends):
-        #plt.plot(np.absolute(np.fft.fft(data[i:e])))
-        #plt.show()
-        #raw_input()
-        features.append(np.absolute(np.fft.fft(data[i:e])[0:4000:50]))
+        spec = np.absolute(np.fft.fft(data[i:e])[0:3500])
+        f = np.convolve(spec, kernel)
+        features.append(f[::kernel_len])
     return features
 
 def get_features_cepstrum(data, starts):
@@ -181,14 +236,13 @@ def get_features_cepstrum(data, starts):
     return np.log(c[0:50])
 
 def get_features(data, starts, ends):
-    ans = []
-    for a, b in zip(get_features_cepstrum(data, starts), get_features_fft(data, starts,ends)):
-        ans.append(b)
-        # ans.append(np.concatenate((a,np.log(b))))
-
-    features = np.array(ans)
-    features = (features - np.mean(np.array(features), axis=0)) / np.std(np.array(features), axis=0)
-    return features
+    f1 = get_features_fft(data, starts, ends)
+    f2 = get_features_cepstrum(data, starts)
+    print "fft feature len:", len(f1[0])
+    print "cepstrum feature len", len(f2[0])
+    f = np.array([np.append(x, y) for x,y in zip(f1,f2)])
+    f = (f - np.mean(f, axis=0)) / np.std(f, axis=0)
+    return f
 
 def clusterize(ls, num_clusters=50):
     '''Clusters the objects (np arrays) in ls into clusters
@@ -201,7 +255,7 @@ def clusterize(ls, num_clusters=50):
     n = len(ls[0])
     m = len(ls)
     means = random.sample(ls, num_clusters)
-    variances = [np.identity(n) for _ in range(m)]
+    #variances = [np.identity(n) for _ in range(m)]
     assignments = [0 for i in range(len(ls))]
     dead_cluster = {}
 
@@ -246,7 +300,7 @@ def clusterize(ls, num_clusters=50):
             if i in dead_cluster:
                 continue
             means[i] = sum(item for item in z[i])/len(z[i])
-            variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
+            #variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
 
         #print variances
         print "iteration:", j, "num_changes:", changes
@@ -255,11 +309,10 @@ def clusterize(ls, num_clusters=50):
 
     return np.array([get_closest_cluster(means, l) for l in ls]), means
 
-
 def print_dict_sorted(d):
     l = []
     for v, k in sorted((v, k) for k, v in d.items()):
-        l.append( '%s: %s' % (k, v))
+        l.append( '[%s]: %s' % (k, v))
     for i in range(0, len(l), 5):
         print '         '.join(l[i: i+5])
 
