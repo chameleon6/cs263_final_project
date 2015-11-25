@@ -84,8 +84,8 @@ if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
 chunk_lens = map(lambda (x,y): x-y, zip(np.append(inds[1:], [len(data)]), inds))
-spacinesses = np.array(map(sum, zip([0] + chunk_lens, chunk_lens)))
-space_thresh = sorted(spacinesses)[int(0.6 * len(spacinesses))]
+spacinesses = np.array([x+y for (x,y) in zip([0] + chunk_lens, chunk_lens)])
+space_thresh = sorted(spacinesses)[int(0.5 * len(spacinesses))]
 space_guesses_from_time = []
 
 for i,v in enumerate(spacinesses):
@@ -116,6 +116,56 @@ for i,v in enumerate(inds):
         break
 
 ii_space = np.zeros(len(data))
+
+typed_words = text.split(' ')
+typed_lens = map(len, typed_words)
+guessed_lens = [x-y-1 for (x,y) in zip(space_guesses_from_time, [-1] + space_guesses_from_time)]
+typed_lens = np.array(typed_lens)
+guessed_lens = np.array(guessed_lens)
+print "actual word lens:"
+print typed_lens
+print "guessed lens:"
+print guessed_lens
+
+def longest_common_subseq(list1, list2):
+    # returns indices of each list which correspond to the LCS
+    m,n = len(list1), len(list2)
+    lcs_len = [[None for _ in range(n+1)] for _ in range(m+1)]
+    lcs_action = [[None for _ in range(n+1)] for _ in range(m+1)] # used to reconstruct lcs
+    for i in range(n+1):
+        lcs_len[0][i] = 0
+    for i in range(m+1):
+        lcs_len[i][0] = 0
+
+    for i in range(1,m+1):
+        for j in range(1, n+1):
+            options = [(lcs_len[i-1][j], "discard1"), (lcs_len[i][j-1], "discard2")]
+            if list1[i-1] == list2[j-1]:
+                options.append((lcs_len[i-1][j-1]+1, "match"))
+            res = max(options)
+            lcs_len[i][j] = res[0]
+            lcs_action[i][j] = res[1]
+
+    ci, cj = m, n
+    list1_inds = []
+    list2_inds = []
+    while ci > 0 and cj > 0:
+        ac = lcs_action[ci][cj]
+        assert ac in ["discard1", "discard2", "match"]
+        if ac == "discard1":
+            ci -= 1
+        elif ac == "discard2":
+            cj -= 1
+        else:
+            assert list1[ci-1] == list2[cj-1]
+            list1_inds.append(ci-1)
+            list2_inds.append(cj-1)
+            ci -= 1
+            cj -= 1
+
+    list1_inds.reverse()
+    list2_inds.reverse()
+    return list1_inds, list2_inds, np.array(list1)[list1_inds]
 
 starts = np.array(inds)[space_guesses_from_time]
 for i in starts:
