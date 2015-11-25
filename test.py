@@ -14,7 +14,8 @@ from mlalgs import (
     clusterize,
     print_dict_sorted,
     plot_group,
-    baum_welch
+    baum_welch,
+    longest_common_subseq
 )
 
 ###################################################################
@@ -127,47 +128,17 @@ print typed_lens
 print "guessed lens:"
 print guessed_lens
 
-def longest_common_subseq(list1, list2):
-    # returns indices of each list which correspond to the LCS
-    m,n = len(list1), len(list2)
-    lcs_len = [[None for _ in range(n+1)] for _ in range(m+1)]
-    lcs_action = [[None for _ in range(n+1)] for _ in range(m+1)] # used to reconstruct lcs
-    for i in range(n+1):
-        lcs_len[0][i] = 0
-    for i in range(m+1):
-        lcs_len[i][0] = 0
-
-    for i in range(1,m+1):
-        for j in range(1, n+1):
-            options = [(lcs_len[i-1][j], "discard1"), (lcs_len[i][j-1], "discard2")]
-            if list1[i-1] == list2[j-1]:
-                options.append((lcs_len[i-1][j-1]+1, "match"))
-            res = max(options)
-            lcs_len[i][j] = res[0]
-            lcs_action[i][j] = res[1]
-
-    ci, cj = m, n
-    list1_inds = []
-    list2_inds = []
-    while ci > 0 and cj > 0:
-        ac = lcs_action[ci][cj]
-        assert ac in ["discard1", "discard2", "match"]
-        if ac == "discard1":
-            ci -= 1
-        elif ac == "discard2":
-            cj -= 1
-        else:
-            assert list1[ci-1] == list2[cj-1]
-            list1_inds.append(ci-1)
-            list2_inds.append(cj-1)
-            ci -= 1
-            cj -= 1
-
-    list1_inds.reverse()
-    list2_inds.reverse()
-    return list1_inds, list2_inds, np.array(list1)[list1_inds]
-
+typed_word_inds, guessed_word_inds, good_word_lens = longest_common_subseq(typed_lens, guessed_lens)
 starts = np.array(inds)[space_guesses_from_time]
+supervised_train_data = []
+
+for t,g,l in zip(typed_word_inds, guessed_word_inds, good_word_lens):
+    real_word = typed_words[t]
+    this_chunk = space_guesses_from_time[g-1]+1 if g > 0 else 0
+    print real_word, this_chunk
+    for i in range(l):
+        supervised_train_data.append((real_word[i], chunks[this_chunk + i]))
+
 for i in starts:
     ii_space[i] = 1
 
