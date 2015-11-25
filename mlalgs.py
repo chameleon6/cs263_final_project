@@ -91,11 +91,11 @@ def get_chunk_starts(data):
     power = power_graph(data)
     intervals = []
     min_size = 30
-    max_size = 50
+    max_size = 62
     before_peak = 6
     win = np.ones(min_size)/float(min_size)
     p_sort = sorted(power)
-    thresh1 = p_sort[int(0.8 * len(power))]
+    thresh1 = p_sort[int(0.95 * len(power))]
     thresh2 = p_sort[int(0.55* len(power))]
     thresh3 = p_sort[int(0.5 * len(power))]
 
@@ -106,9 +106,7 @@ def get_chunk_starts(data):
     data_chunks=[]
     #plt.plot(np.log(power))
     #plt.plot(np.log(np.ones(len(power))*thresh1))
-    #ii = np.zeros(len(power))
-    #ii[peaks] = 14
-    #plt.plot(ii, 'r+')
+    #plt.plot(np.log(np.ones(len(power))*thresh2))
     #plt.show()
     for p in peaks:
         if ends and p < ends[-1]/hopsamp:
@@ -153,20 +151,28 @@ def get_chunk_starts(data):
 def get_features_fft(data, starts, ends):
     features = []
     for i,e in zip(starts, ends):
-        features.append(np.absolute(np.fft.fft(data[i:e])[0:300]))
+        #plt.plot(np.absolute(np.fft.fft(data[i:e])))
+        #plt.show()
+        #raw_input()
+        features.append(np.absolute(np.fft.fft(data[i:e])[0:4000:50]))
     return features
 
 def get_features_cepstrum(data, starts):
     '''Grab the features from a single keystroke'''
     # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
     # The definition of cepstrum
-    f = mfcc(data, samplerate=44100, winlen=0.1, winstep=0.025, numcep=16, nfilt=32, appendEnergy=False)
+    f = mfcc(data, samplerate=44100, winlen=0.01, winstep=0.0025, numcep=16, nfilt=32, appendEnergy=False)
     ans = []
     print len(f)
     print len(data)/(44100*0.025)
     for s in starts:
-        b = int(s / (44100*0.025))
-        ans.append(np.concatenate((f[b], f[b+1], f[b+2], f[b+3])))
+        max_s = 60
+        b = int(s / (44100*0.0025))
+        if b+max_s >= len(f): break
+        tot = []
+        for i in range(b, b+max_s):
+            tot.append(f[i])
+        ans.append(np.concatenate(tot))
     return ans
     return np.concatenate((f[0], f[1], f[2]))
     f=np.absolute(np.fft.fft(chunk, n=256))
@@ -175,7 +181,14 @@ def get_features_cepstrum(data, starts):
     return np.log(c[0:50])
 
 def get_features(data, starts, ends):
-    return get_features_fft(data, starts, ends)
+    ans = []
+    for a, b in zip(get_features_cepstrum(data, starts), get_features_fft(data, starts,ends)):
+        ans.append(b)
+        # ans.append(np.concatenate((a,np.log(b))))
+
+    features = np.array(ans)
+    features = (features - np.mean(np.array(features), axis=0)) / np.std(np.array(features), axis=0)
+    return features
 
 def clusterize(ls, num_clusters=50):
     '''Clusters the objects (np arrays) in ls into clusters
@@ -250,11 +263,14 @@ def print_dict_sorted(d):
     for i in range(0, len(l), 5):
         print '         '.join(l[i: i+5])
 
-def baum_welch(pi, theta, observations):
+def baum_welch(pi, theta, observations, spaces):
     # Theta is transition probability: i-jth entry is transition from i to j
     K = len(pi) # Number of hidden states
     T = len(observations)
     phi = np.random.rand(len(pi), 50)
+    phi[26, :] = 0
+    for i in spaces:
+        phi[26, i] += 1.0 / len(spaces)
 
     for iteration in range(100):
         # E-step

@@ -22,18 +22,18 @@ from mlalgs import (
 ###################################################################
 
 DATA_FILES = {
-    'sound': 'sound2.wav', # sound1.wav
-    'text': 'text2.txt', # text1.txt
+    'sound': 'sound3.wav', # sound1.wav
+    'text': 'text3.txt', # text1.txt
 }
 # the fraction of the file we use
 file_range = (0, 1.0)
 
 USE_PCA = False
-DEBUG = False
+DEBUG = True
 # Which plots to actually plot.
 PLOT_SET = set([
-    #'Segmentation Plot',
-    #'Cepstrum Plot',
+    'Segmentation Plot',
+    'Cepstrum Plot',
     'PCA Plot',
 ])
 PRINT_SET = set([
@@ -46,17 +46,23 @@ CURRENT_STAGE = 'HMM' # or Segmentation, Feature, Clustering, HMM
 def cache_or_compute(fname, fun, *args, **kwargs):
     if DEBUG or ("debug" in kwargs and kwargs["debug"]):
         c = fun(*args)
-        np.save(fname, c)
+        #np.save(fname, c)
         return c
     try:
         print "using cache at", fname, "for", fun
         return np.load(fname)
     except IOError:
         c = fun(*args)
-        np.save(fname, c)
+        #np.save(fname, c)
         return c
 
 rate, data = scipy.io.wavfile.read(DATA_FILES['sound'])
+
+data = data.astype(float)
+
+# Convert stereo to mono
+if data.shape[1] == 2:
+    data = (data[:, 0] + data[:, 1])/2
 
 spaces = []
 text = ''
@@ -72,12 +78,9 @@ with open(DATA_FILES['text'], "r") as f:
 ###################################################################
 
 inds, ends, chunks = cache_or_compute(
-    'cache/chunks.npy', lambda arg: get_chunk_starts_simpler(arg),
+    'cache/chunks.npy', lambda arg: get_chunk_starts(arg),
     data[int(file_range[0] * len(data)): int(file_range[1] * len(data))], debug=False)
 
-if not DEBUG:
-    inds = inds.astype(int)
-    ends = ends.astype(int)
 
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
@@ -107,7 +110,6 @@ plot_group(PLOT_SET, 'Cepstrum Plot',
             #features[11],
             #features[12],
             #features[13]
-
            features[spaces[0]],
            features[spaces[1]], features[spaces[2]],
            features[0], features[1])
@@ -217,13 +219,11 @@ def compute_bigram():
 
         return compute_freq_dist(letter_pairs[inds])
 
-cache_or_compute("cache/next_letter_prob.npy", compute_bigram)
+pi, A = cache_or_compute("cache/next_letter_prob.npy", compute_bigram)
 
 ###################################################################
 # HMM Viterbi
 ###################################################################
-
-pi, A = np.load("cache/next_letter_prob.npy").tolist()
 
 valid_letters = map(chr, range(97,123)) + [' ']
 
@@ -235,7 +235,8 @@ for i, c in enumerate(valid_letters):
     for j, c2 in enumerate(valid_letters):
         theta_v[i, j] = A[c][c2]
 
-baum_welch(pi_v, theta_v, clusters)
+spaces = [c for s, c in zip(text, clusters) if s == ' ']
+baum_welch(pi_v, theta_v, clusters, spaces)
 
 
 n_letters = len(valid_letters)
