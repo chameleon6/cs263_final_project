@@ -22,6 +22,7 @@ def load_data(wav_file, text_file):
     text = ''
     with open(text_file, 'r') as f:
         text = f.read()
+    if text[-1] == '\n': text = text[:-1]
     return rate, data, text
 
 def longest_common_subseq(list1, list2):

@@ -29,8 +29,8 @@ pi, A, pi_v, theta_v = compute_bigram()
 ###################################################################
 
 DATA_FILES = {
-    'sound': 'data/sound6.wav', # sound1.wav
-    'text': 'data/text6.txt', # text1.txt
+    'sound': 'sound7.wav', # sound1.wav
+    'text': 'text7.txt', # text1.txt
 }
 # the fraction of the file we use
 file_range = (0, 1.0)

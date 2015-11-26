@@ -1,3 +1,5 @@
 cache/*
 *.pyc
 data/*
+sound*.wav
+text*.txt

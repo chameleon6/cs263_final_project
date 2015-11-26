@@ -1,5 +1,6 @@
 import re
 import numpy as np
+from mlalgs import print_dict_sorted
 
 valid_letters = map(chr, range(97,123)) + [' ']
 def compute_freq_dist(data):
@@ -26,12 +27,11 @@ def compute_freq_dist(data):
         for o in freq[i]:
             freq[i][o] /= float(counts[i])
 
-    for c in counts:
-        counts[c] /= float(sum(counts.values()))
+    counts = {c: counts[c]/float(sum(counts.values())) for c in counts}
 
     return counts, freq
 
-def compute_bigram():
+def compute_bigram(fname = 'full_text.txt'):
     try:
         return np.loads('cache/next_letter_probs.npy')
     except Exception as e:
@@ -53,3 +53,8 @@ def compute_bigram():
                     theta_v[i, j] = A[c][c2]
             np.save('cache/next_letter_prob.npy', (pi, A, pi_v, theta_v))
             return pi, A, pi_v, theta_v
+
+if __name__ == '__main__':
+    pi, A, pi_v, theta_v = compute_bigram()
+    print_dict_sorted(pi)
+    print_dict_sorted(A)

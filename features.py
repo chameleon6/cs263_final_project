@@ -1,3 +1,16 @@
+'''
+Feature functions, along with visualizion and test functions for development purposes.
+One way to evaluate features:
+1. start ipython, and run %run features.py.
+2. Paste in:
+
+rate, data, text = load_data('data/sound7.wav', 'data/text7.txt')
+starts, ends, chunks = get_chunk_starts(data)
+
+3. Generate feature vector you want to test.
+4. Use visualize to see if any two features can separate some characters, or score to train a really stupid classifier.
+'''
+
 from python_speech_features.features import mfcc
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,6 +33,13 @@ def binom_kernel(n):
 
 def normalize(f):
     return (f - np.mean(f, axis=0)) / np.std(f, axis=0)
+
+def get_features_energy(data, starts, ends):
+    '''Really dumb feature vector consisting of total energy and duration'''
+    features = []
+    for i, e in zip(starts, ends):
+        features.append(np.array([np.sqrt(np.sum(data[i: e]**2)), e-i]))
+    return normalize(np.array(features))
 
 def get_features_fft(data, starts, ends, kernel_len=100, lower=0, upper=3500):
     kernel_len = 100
@@ -68,18 +88,31 @@ def score(text, feature_v, letters=valid_letters):
     '''Train a classifier to distinguish between ' ', 'e', and 't'
     and output accuracy of classifier'''
     feature_v = np.array(feature_v)
-    pairing = zip(text, feature_v)[:int(0.2*len(text))]
+    pairing = zip(text, feature_v)
     # Empirical letter frequencies
-    prior = {' ': 0.17754225405572727, 'a': 0.08044221339122587, 'c': 0.033741774654502114, 'b': 0.01727111419151551, 'e': 0.14310853647395913, 'd': 0.05301948291262867, 'g': 0.027519744707964172, 'f': 0.03385692474818912, 'i': 0.10945383955813408, 'h': 0.0917128383239704, 'k': 0.012205140432923142, 'j': 0.003026786929778515, 'm': 0.04795054157202014, 'l': 0.08187921049634359, 'o': 0.16380304097600146, 'n': 0.18307015217871747, 'q': 0.0033960789146692287, 'p': 0.0640735988417217, 's': 0.22168847983899614, 'r': 0.2667209853900528, 'u': 0.1610266167506027, 't': 0.6541244823613469, 'w': 0.38408012315480666, 'v': 0.3306543219302994, 'y': 0.854134628541169, 'x': 0.6761849057341293, 'z': 0.9989215169463295}
 
-    s_prior = sum(prior[c] for c in letters)
-    for c in letters:
-        prior[c] /= s_prior
+    prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
+             0.012621361579079272, 'c': 0.025518818692412935, 'd':
+             0.03262728212110697, 'e': 0.10277443948100279, 'f':
+             0.01918733974586732, 'g': 0.016037285549336523, 'h':
+             0.044719330604384044, 'i': 0.05992936945880769, 'j':
+             0.0013241493293807592, 'k': 0.005405441005854335, 'l':
+             0.03399944052957654, 'm': 0.02091376009533875, 'n':
+             0.05836118842055676, 'o': 0.062448199590206976, 'p':
+             0.016630033024006965, 'q': 0.0008844416266793212, 'r':
+             0.050427384794675394, 's': 0.053851628027735035, 't':
+             0.07608295136940266, 'u': 0.02232422177629433, 'v':
+             0.008193087316555922, 'w': 0.01545147079366807, 'x':
+             0.001635948366495417, 'y': 0.014166144690698474, 'z':
+             0.0007827039753250665}
 
     means = np.zeros((len(letters), feature_v.shape[1]))
     stds = np.zeros((len(letters), feature_v.shape[1]))
     examples = [[] for _ in letters]
-    for c, f in pairing:
+
+    training = pairing[:1800]
+    test = pairing[:200]
+    for c, f in training:
         if c not in letters:
             continue
         i = letters.index(c)
@@ -90,25 +123,26 @@ def score(text, feature_v, letters=valid_letters):
         stds[i] = np.std(np.array(examples[i]), axis=0)
 
     score = 0
-    total = 0
-    for i in range(len(letters)):
-        for f in examples[i]:
-            total += 1
-            minj= 0
-            minscore = -1e100000
-            # import pdb; pdb.set_trace()
-            for j in range(len(letters)):
-                s = np.sum(-(f - means[j])**2/stds[j]**2) - np.log(prior[letters[j]])
-                if s > minscore:
-                    minj = j
-                    minscore = s
-            if minj == i:
-                score += 1
-    return score/float(total)
+    pred = []
+    for c, f in test:
+        if c not in letters:
+            continue
+        minj= 0
+        minscore = -1e100000
+        for j in range(len(letters)):
+            s = -np.sum((f - means[j])**2/stds[j]**2) + np.log(prior[letters[j]])
+            if s > minscore:
+                minj = j
+                minscore = s
+        pred.append(letters[minj])
+        if minj == letters.index(c):
+            score += 1
+    print ''.join(pred)
+    return score/float(len(test))
 
 def visualize(text, feature_v, ind1, ind2, letters=(' ', 'e', 't')):
     colormap = ['r', 'g', 'b', 'm', 'c', 'k']
-    pairing = zip(text, feature_v)[:int(0.16*len(text))]
+    pairing = zip(text, feature_v)[:2000]
     xs = []
     ys = []
     colors = []
@@ -167,7 +201,3 @@ def gen_segmentation_report(data, starts, ends):
     pdf_pages.close()
 
 
-'''
-rate, data, text = load_data('data/sound6.wav', 'data/text5.txt')
-starts, ends, chunks = get_chunk_starts(data)
-'''
