@@ -57,7 +57,7 @@ def get_features_fft(data, starts, ends, kernel_len=150, lower=1, upper=5500):
 
 def get_features_cepstrum(data, starts, ends,
                          winlen=0.01, winstep=0.01,
-                         numcep=16, nfilt=32, appendEnergy=False, keylen=40):
+                         numcep=20, nfilt=32, appendEnergy=False, keylen=40):
     '''Grab the features from a single keystroke'''
     # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
     # The definition of cepstrum
