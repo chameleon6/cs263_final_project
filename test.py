@@ -9,15 +9,17 @@ from sklearn.decomposition import PCA
 import re
 
 from mlalgs import (
+    load_data,
     get_chunk_starts,
     get_chunk_starts_simpler,
-    get_features,
     clusterize,
     print_dict_sorted,
     plot_group,
     baum_welch,
     longest_common_subseq
 )
+
+from features import get_features
 
 from langmodel import compute_bigram
 pi, A, pi_v, theta_v = compute_bigram()
@@ -27,13 +29,13 @@ pi, A, pi_v, theta_v = compute_bigram()
 ###################################################################
 
 DATA_FILES = {
-    'sound': 'sound5.wav', # sound1.wav
-    'text': 'text5.txt', # text1.txt
+    'sound': 'data/sound6.wav', # sound1.wav
+    'text': 'data/text6.txt', # text1.txt
 }
 # the fraction of the file we use
 file_range = (0, 1.0)
 
-USE_PCA = False
+USE_PCA = True
 DEBUG = True
 # Which plots to actually plot.
 PLOT_SET = set([
@@ -61,23 +63,12 @@ def cache_or_compute(fname, fun, *args, **kwargs):
         #np.save(fname, c)
         return c
 
-rate, data = scipy.io.wavfile.read(DATA_FILES['sound'])
-#data_end = len(data) - 50000
-#data = np.abs(data[:data_end] + 0.01)
-
-data = data.astype(float)
-
-# Convert stereo to mono
-if len(data.shape) == 2 and data.shape[1] == 2:
-    data = (data[:, 0] + data[:, 1])/2
+rate, data, text = load_data(DATA_FILES['sound'], DATA_FILES['text'])
 
 spaces = []
-text = ''
-with open(DATA_FILES['text'], "r") as f:
-    text = f.read().strip()
-    for (i,c) in enumerate(text):
-        if c == ' ':
-            spaces.append(i)
+for (i,c) in enumerate(text):
+    if c == ' ':
+        spaces.append(i)
 
 ###################################################################
 # Segmentation
@@ -94,6 +85,7 @@ if not isinstance(inds, list):
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
+'''
 chunk_lens = map(lambda (x,y): x-y, zip(np.append(inds[1:], [len(data)]), inds))
 spacinesses = np.array([x+y for (x,y) in zip([0] + chunk_lens, chunk_lens)])
 space_thresh = sorted(spacinesses)[int(0.5 * len(spacinesses))]
@@ -163,6 +155,7 @@ plot_group(PLOT_SET, 'Segmentation Plot',
            np.ones(M-N)*space_thresh/1600
            )
 
+'''
 if CURRENT_STAGE == 'Segmentation':
     sys.exit()
 

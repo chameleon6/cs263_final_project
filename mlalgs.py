@@ -8,6 +8,22 @@ from sklearn.decomposition import PCA
 from python_speech_features.features import mfcc
 from scipy import signal
 
+def load_data(wav_file, text_file):
+    rate, data = scipy.io.wavfile.read(wav_file)
+    #data_end = len(data) - 50000
+    #data = np.abs(data[:data_end] + 0.01)
+
+    data = data.astype(float)
+
+    # Convert stereo to mono
+    if len(data.shape) == 2 and data.shape[1] == 2:
+        data = (data[:, 0] + data[:, 1])/2
+
+    text = ''
+    with open(text_file, 'r') as f:
+        text = f.read()
+    return rate, data, text
+
 def longest_common_subseq(list1, list2):
     # returns indices of each list which correspond to the LCS
     m,n = len(list1), len(list2)
@@ -191,66 +207,12 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def binom_kernel(n):
-    kernel = [1.0]
-    for i in range(n):
-        k1 = [0]
-        k1.extend(kernel)
-        k2 = kernel[:]
-        k2.append(0)
-        kernel = [(x+y)/2 for x,y in zip(k1, k2)]
-
-    return np.array(kernel)
-
-def get_features_fft(data, starts, ends):
-    kernel_len = 100
-    features = []
-    kernel = binom_kernel(kernel_len)
-    for i,e in zip(starts, ends):
-        spec = np.absolute(np.fft.fft(data[i:e])[0:3500])
-        f = np.convolve(spec, kernel)
-        features.append(f[::kernel_len])
-    return features
-
-def get_features_cepstrum(data, starts):
-    '''Grab the features from a single keystroke'''
-    # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
-    # The definition of cepstrum
-    f = mfcc(data, samplerate=44100, winlen=0.01, winstep=0.0025, numcep=16, nfilt=32, appendEnergy=False)
-    ans = []
-    print len(f)
-    print len(data)/(44100*0.025)
-    for s in starts:
-        max_s = 60
-        b = int(s / (44100*0.0025))
-        if b+max_s >= len(f): break
-        tot = []
-        for i in range(b, b+max_s):
-            tot.append(f[i])
-        ans.append(np.concatenate(tot))
-    return ans
-    return np.concatenate((f[0], f[1], f[2]))
-    f=np.absolute(np.fft.fft(chunk, n=256))
-    lf = np.log(f ** 2)
-    c = (np.absolute(np.fft.ifft(lf))**2)
-    return np.log(c[0:50])
-
-def get_features(data, starts, ends):
-    f1 = get_features_fft(data, starts, ends)
-    f2 = get_features_cepstrum(data, starts)
-    print "fft feature len:", len(f1[0])
-    print "cepstrum feature len", len(f2[0])
-    f = np.array([np.append(x, y) for x,y in zip(f1,f2)])
-    f = (f - np.mean(f, axis=0)) / np.std(f, axis=0)
-    return f
-
 def clusterize(ls, num_clusters=50):
     '''Clusters the objects (np arrays) in ls into clusters
     The current algorithm is k-means
     '''
-    scaling = np.std(np.array(ls), axis=0)
     def distance(a, b):
-        return np.linalg.norm((a-b)/scaling)
+        return np.linalg.norm(a-b)
 
     n = len(ls[0])
     m = len(ls)
