@@ -19,9 +19,15 @@ from mlalgs import (
     longest_common_subseq
 )
 
-from features import get_features
+from features import (
+    get_features, get_features_fft, get_features_cepstrum
+)
 
-from langmodel import compute_bigram
+from langmodel import (
+    valid_letters,
+    compute_freq_dist,
+    compute_bigram
+)
 pi, A, pi_v, theta_v = compute_bigram()
 
 ###################################################################
@@ -29,19 +35,19 @@ pi, A, pi_v, theta_v = compute_bigram()
 ###################################################################
 
 DATA_FILES = {
-    'sound': 'sound7.wav', # sound1.wav
-    'text': 'text7.txt', # text1.txt
+    'sound': 'data/sound7.wav', # sound1.wav
+    'text': 'data/text7.txt', # text1.txt
 }
 # the fraction of the file we use
 file_range = (0, 1.0)
 
 USE_PCA = True
-DEBUG = True
+DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
-    'Segmentation Plot',
-    'Cepstrum Plot',
-    'PCA Plot',
+    #'Segmentation Plot',
+    #'Cepstrum Plot',
+    #'PCA Plot',
 ])
 PRINT_SET = set([
     'Segmentation',
@@ -60,7 +66,7 @@ def cache_or_compute(fname, fun, *args, **kwargs):
         return np.load(fname)
     except IOError:
         c = fun(*args)
-        #np.save(fname, c)
+        np.save(fname, c)
         return c
 
 rate, data, text = load_data(DATA_FILES['sound'], DATA_FILES['text'])
@@ -176,7 +182,7 @@ plot_group(PLOT_SET, 'Cepstrum Plot',
 features = np.array(features)
 
 if USE_PCA:
-    pca = PCA(n_components=10)
+    pca = PCA(n_components=16)
     pca.fit(features)
     if 'Feature' in PRINT_SET:
         print pca.explained_variance_ratio_
@@ -194,7 +200,7 @@ if CURRENT_STAGE == 'Feature':
 # Clustering
 ###################################################################
 
-clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, debug=True)
+clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces, debug=True)
 n_clusters = len(clusters)
 
 if 'Clustering' in PRINT_SET:
@@ -233,11 +239,15 @@ if CURRENT_STAGE == 'Clustering':
 ###################################################################
 
 spaces = [c for s, c in zip(text, clusters) if s == ' ']
-baum_welch(pi_v, theta_v, clusters, spaces)
+baum_welch(pi_v, theta_v, clusters, spaces, text)
+
+'''
+The following HMM code doesn't work as well as baum-welch and is slower.
+This might be because of how we initialize the spaces though.
 
 
 n_letters = len(valid_letters)
-letters_typed = ['t','h','e',' ']  + [valid_letters[int(n_letters * random.random())] for i in range(n_clusters-4)]
+letters_typed = ['o', 'n' ,' ']  + [valid_letters[int(n_letters * random.random())] for i in range(n_clusters-3)]
 #letters_typed = [random.choice(['e','t','r','a','s',' ']) for i in range(n_clusters)]
 eta = {}
 most_likely_seq = {}
@@ -285,3 +295,4 @@ for trial in range(100):
     letters_typed = most_likely_seq[best_end]
     print "".join(letters_typed)
     assert len(letters_typed) == n_clusters
+'''

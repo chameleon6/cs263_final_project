@@ -208,7 +208,7 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, num_clusters=50):
+def clusterize(ls, spaces, num_clusters=50):
     '''Clusters the objects (np arrays) in ls into clusters
     The current algorithm is k-means
     '''
@@ -217,7 +217,8 @@ def clusterize(ls, num_clusters=50):
 
     n = len(ls[0])
     m = len(ls)
-    means = random.sample(ls, num_clusters)
+    notspaces = [i for i in range(len(ls)) if i not in spaces]
+    means = random.sample(ls[spaces], 3) + random.sample(ls[notspaces], num_clusters-3)
     #variances = [np.identity(n) for _ in range(m)]
     assignments = [0 for i in range(len(ls))]
     dead_cluster = {}
@@ -279,7 +280,7 @@ def print_dict_sorted(d):
     for i in range(0, len(l), 5):
         print '         '.join(l[i: i+5])
 
-def baum_welch(pi, theta, observations, spaces):
+def baum_welch(pi, theta, observations, spaces, text):
     # Theta is transition probability: i-jth entry is transition from i to j
     K = len(pi) # Number of hidden states
     T = len(observations)
@@ -288,7 +289,7 @@ def baum_welch(pi, theta, observations, spaces):
     for i in spaces:
         phi[26, i] += 1.0 / len(spaces)
 
-    for iteration in range(100):
+    for iteration in range(150):
         # E-step
         # First, the forward-backward algorithm
         alpha = np.zeros((T, K))
@@ -318,6 +319,8 @@ def baum_welch(pi, theta, observations, spaces):
 
         for t in range(len(observations)):
             seq.append(valid_letters[np.argmax(gamma[t, :])])
-        print 'Iteration ', iteration
-        print ''.join(seq)
+        if iteration % 3 == 0:
+            print 'Iteration ', iteration
+            print ''.join(seq)
+            print len([1 for s, c in zip(seq, text) if s == c])/float(len(seq))
     return phi

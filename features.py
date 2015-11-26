@@ -34,26 +34,30 @@ def binom_kernel(n):
 def normalize(f):
     return (f - np.mean(f, axis=0)) / np.std(f, axis=0)
 
+def combine_feature_v(f1, f2):
+    return np.array([np.append(x, y) for x,y in zip(f1,f2)])
+
 def get_features_energy(data, starts, ends):
-    '''Really dumb feature vector consisting of total energy and duration'''
+    '''Really dumb feature vector consisting of total energy. Good at distinguishing space vs nonspace'''
     features = []
     for i, e in zip(starts, ends):
-        features.append(np.array([np.sqrt(np.sum(data[i: e]**2)), e-i]))
+        features.append(np.array([np.sqrt(np.sum(data[i: e]**2))]))
     return normalize(np.array(features))
 
-def get_features_fft(data, starts, ends, kernel_len=100, lower=0, upper=3500):
-    kernel_len = 100
+def get_features_fft(data, starts, ends, kernel_len=150, lower=1, upper=5500):
     features = []
     kernel = binom_kernel(kernel_len)
     for i,e in zip(starts, ends):
         spec = np.absolute(np.fft.fft(data[i:e])[lower: upper])
         f = np.convolve(spec, kernel)
-        features.append(f[::kernel_len])
-    return normalize(np.log(np.abs(features)+0.001))
+        f = f[::kernel_len]
+        f /= np.linalg.norm(f)
+        features.append(f)
+    return combine_feature_v(get_features_energy(data, starts, ends), normalize(np.abs(features)))
 
 def get_features_cepstrum(data, starts, ends,
-                         winlen=0.01, winstep=0.0025,
-                         numcep=16, nfilt=32, appendEnergy=False, keylen=20):
+                         winlen=0.01, winstep=0.01,
+                         numcep=16, nfilt=32, appendEnergy=False, keylen=40):
     '''Grab the features from a single keystroke'''
     # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
     # The definition of cepstrum
@@ -67,22 +71,24 @@ def get_features_cepstrum(data, starts, ends,
         if b+max_s >= len(f): break
         tot = []
         for i in range(b, b+max_s):
-            tot.append(f[i])
+            tot.append(f[i, 1:])
         ans.append(np.concatenate(tot))
-    return ans
-    return np.concatenate((f[0], f[1], f[2]))
-    f=np.absolute(np.fft.fft(chunk, n=256))
-    lf = np.log(f ** 2)
-    c = (np.absolute(np.fft.ifft(lf))**2)
-    return normalize(np.log(c[0:50]))
+    return normalize(ans)
 
-def get_features(data, starts, ends):
-    f1 = get_features_fft(data, starts, ends)
-    f2 = get_features_cepstrum(data, starts, ends)
-    print "fft feature len:", len(f1[0])
-    print "cepstrum feature len", len(f2[0])
-    f = np.array([np.append(x, y) for x,y in zip(f1,f2)])
-    return f
+def get_features(data, starts, ends, include_fft=True, include_cepstrum=True):
+    if include_fft:
+        f1 = get_features_fft(data, starts, ends)
+        print "fft feature len:", len(f1[0])
+    if include_cepstrum:
+        f2 = get_features_cepstrum(data, starts, ends)
+        print "cepstrum feature len", len(f2[0])
+    if include_fft and include_cepstrum:
+        return combine_feature_v(f1, f2)
+    elif include_fft:
+        return f1
+    elif include_cepstrum:
+        return f2
+    raise Exception('FFT or Cepstrum must be included')
 
 def score(text, feature_v, letters=valid_letters):
     '''Train a classifier to distinguish between ' ', 'e', and 't'
@@ -138,6 +144,7 @@ def score(text, feature_v, letters=valid_letters):
         if minj == letters.index(c):
             score += 1
     print ''.join(pred)
+    print ''.join(c for c, _ in test)
     return score/float(len(test))
 
 def visualize(text, feature_v, ind1, ind2, letters=(' ', 'e', 't')):
