@@ -8,6 +8,8 @@ from sklearn.decomposition import PCA
 from python_speech_features.features import mfcc
 from scipy import signal
 
+numclusters = 48
+
 def load_data(wav_file, text_file):
     rate, data = scipy.io.wavfile.read(wav_file)
     #data_end = len(data) - 50000
@@ -208,7 +210,20 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, spaces, num_clusters=50):
+def clusterize(ls, spaces, num_clusters=numclusters):
+    bestclusters = 0
+    bestmeans = 0
+    bestscore = 1e1000000
+    for i in range(10):
+        print 'Try', i
+        clusters, means, score = clusterize_inner(ls, spaces, num_clusters)
+        if score < bestscore:
+            bestmeans = means
+            bestclusters = clusters
+            bestscore = score
+    return bestclusters, bestmeans
+
+def clusterize_inner(ls, spaces, num_clusters=numclusters):
     '''Clusters the objects (np arrays) in ls into clusters
     The current algorithm is k-means
     '''
@@ -257,6 +272,7 @@ def clusterize(ls, spaces, num_clusters=50):
             assignments[ind] = new_cluster
 
         # M-step
+        score = 0
         for i in range(num_clusters):
             if len(z[i]) == 0:
                 dead_cluster[i] = True
@@ -264,6 +280,8 @@ def clusterize(ls, spaces, num_clusters=50):
             if i in dead_cluster:
                 continue
             means[i] = sum(item for item in z[i])/len(z[i])
+            for item in z[i]:
+                score += np.linalg.norm(item - means[i])
             #variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
 
         #print variances
@@ -271,7 +289,7 @@ def clusterize(ls, spaces, num_clusters=50):
         if changes < 5:
             break
 
-    return np.array([get_closest_cluster(means, l) for l in ls]), means
+    return np.array([get_closest_cluster(means, l) for l in ls]), means, score
 
 def print_dict_sorted(d):
     l = []
@@ -280,11 +298,11 @@ def print_dict_sorted(d):
     for i in range(0, len(l), 5):
         print '         '.join(l[i: i+5])
 
-def baum_welch(pi, theta, observations, spaces, text):
+def baum_welch_inner(pi, theta, observations, spaces, text, numclusters=numclusters):
     # Theta is transition probability: i-jth entry is transition from i to j
     K = len(pi) # Number of hidden states
     T = len(observations)
-    phi = np.random.rand(len(pi), 50)
+    phi = np.random.rand(len(pi), numclusters)
     phi[26, :] = 0
     for i in spaces:
         phi[26, i] += 1.0 / len(spaces)
@@ -308,7 +326,7 @@ def baum_welch(pi, theta, observations, spaces, text):
             beta[t, :] = np.dot(theta, phi[:, observations[t+1]] * beta[t+1, :]) / scale[t+1]
 
         gamma = alpha * beta
-        characteristic = np.zeros((T, 50))
+        characteristic = np.zeros((T, numclusters))
         for t, o in enumerate(observations):
             characteristic[t, o] = 1
 
@@ -317,10 +335,23 @@ def baum_welch(pi, theta, observations, spaces, text):
         valid_letters = map(chr, range(97,123)) + [' ']
         seq = []
 
-        for t in range(len(observations)):
-            seq.append(valid_letters[np.argmax(gamma[t, :])])
-        if iteration % 3 == 0:
-            print 'Iteration ', iteration
-            print ''.join(seq)
-            print len([1 for s, c in zip(seq, text) if s == c])/float(len(seq))
-    return phi
+    for t in range(len(observations)):
+        seq.append(valid_letters[np.argmax(gamma[t, :])])
+    print ''.join(seq)
+    print len([1 for s, c in zip(seq, text) if s == c])/float(len(seq))
+    return phi, np.sum(np.log(scale))
+
+
+def baum_welch(pi, theta, observations, spaces, text):
+    best_score = -1e1000000
+    besti = 0
+    bestphi = 0
+    for i in range(15):
+        print 'Tries', i
+        phi, score = baum_welch_inner(pi, theta, observations, spaces, text)
+        if score > best_score:
+            besti = i
+            best_score = score
+            bestphi = phi
+    print best_score, besti
+    return bestphi

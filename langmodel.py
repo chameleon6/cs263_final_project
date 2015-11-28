@@ -39,6 +39,7 @@ def compute_bigram(fname = 'full_text.txt'):
 
         with open("full_text.txt", "r") as f:
             s = f.read().lower()
+            s = re.sub("'", '', s)
             s = re.sub('[^a-z ]', ' ', s)
             s = re.sub(' +', ' ', s)
             letter_pairs = np.array(zip(s, s[1:]))

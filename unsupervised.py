@@ -41,7 +41,7 @@ DATA_FILES = {
 # the fraction of the file we use
 file_range = (0, 1.0)
 
-USE_PCA = True
+USE_PCA = False
 DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
