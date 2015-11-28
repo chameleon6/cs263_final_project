@@ -3,6 +3,7 @@ from mlalgs import load_data, get_chunk_starts
 from langmodel import valid_letters
 import numpy as np
 import scipy
+import random
 
 prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
          0.012621361579079272, 'c': 0.025518818692412935, 'd':
@@ -30,12 +31,26 @@ def logistic(text, feature_v, letters=valid_letters):
 
     cutoff = int(len(text) * 0.8)
     training = pairing[:cutoff]
-    test = pairing[cutoff:]
+    #test = pairing[cutoff:]
+    test = training
 
     weights = {c: np.random.randn(feature_v.shape[1] + 1) for c in letters}
 
     def sigmoid(w, x):
-        return 1.0/(1+np.exp(-np.dot(w, x)))
+        '''Numerically stable sigmoid function'''
+        agg = np.dot(x, w)
+        sig1 = 1.0/(1+np.exp(-agg))
+        z = np.exp(agg)
+        sig2 = z/(1+z)
+        sig = sig1
+        if len(agg.shape) == 0:
+            if agg < 0:
+                return sig2
+            return sig1
+        w = agg<0
+        sig[w] = sig2[w]
+        return sig
+
 
     examples = {c: [] for c in letters}
     for c, f in training:
@@ -49,26 +64,23 @@ def logistic(text, feature_v, letters=valid_letters):
         for d in examples:
             if c == d or len(examples[d]) == 0: continue
             negatives.extend(examples[d])
+        random.shuffle(negatives)
         negatives = np.array(negatives)
         def err(weights):
-            agg = np.dot(positives, weights)
-            sig = 1.0/(1+np.exp(-agg))
+            sig = sigmoid(weights, positives)
             diff = np.sum((1-sig)**2)
-            agg = np.dot(negatives, weights)
-            sig = 1.0/(1+np.exp(-agg))
+            sig = sigmoid(weights, negatives)
             diff += np.sum((0-sig)**2)
             return diff
         def derr(weights):
-            agg = np.dot(positives, weights)
-            sig = 1.0/(1+np.exp(-agg))
+            sig = sigmoid(weights, positives)
             deriv = sig * (1-sig)
             diff = np.sum(2*(sig-1)*deriv* positives.transpose(), axis=1)
-            agg = np.dot(negatives, weights)
-            sig = 1.0/(1+np.exp(-agg))
+            sig = sigmoid(weights, negatives)
             deriv = sig * (1-sig)
             diff += np.sum(2*(sig)*deriv* negatives.transpose(), axis=1)
             return diff
-        res=scipy.optimize.minimize(err, weights[c], jac=derr, method='BFGS', options={'maxiter': 100})
+        res=scipy.optimize.minimize(err, weights[c], jac=derr, method='BFGS', options={'maxiter': 400})
         weights[c] = res.x
 
     score = 0
