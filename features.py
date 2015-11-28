@@ -92,7 +92,9 @@ def get_features(data, starts, ends, include_fft=True, include_cepstrum=True):
 
 def score(text, feature_v, letters=valid_letters):
     '''Train a classifier to distinguish between ' ', 'e', and 't'
-    and output accuracy of classifier'''
+    and output accuracy of classifier.
+    This is a copy of the naive_bayes function in supervised.py,
+    included here for the convenience of testing features.'''
     feature_v = np.array(feature_v)
     pairing = zip(text, feature_v)
     # Empirical letter frequencies

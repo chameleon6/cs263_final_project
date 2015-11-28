@@ -92,6 +92,8 @@ if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
 '''
+TODO: Let's move this stuff out of this file? To supervised or a new file, so that this file contains only the HMM-related stuff
+
 chunk_lens = map(lambda (x,y): x-y, zip(np.append(inds[1:], [len(data)]), inds))
 spacinesses = np.array([x+y for (x,y) in zip([0] + chunk_lens, chunk_lens)])
 space_thresh = sorted(spacinesses)[int(0.5 * len(spacinesses))]
