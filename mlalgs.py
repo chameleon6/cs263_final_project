@@ -9,7 +9,7 @@ from sklearn.mixture import GMM
 from python_speech_features.features import mfcc
 from scipy import signal
 
-numclusters = 48
+numclusters = 60
 
 def load_data(wav_file, text_file):
     rate, data = scipy.io.wavfile.read(wav_file)
@@ -416,8 +416,8 @@ def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclu
         # M-step
         phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
         #phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
-        valid_letters = map(chr, range(97,123)) + [' ']
 
+    valid_letters = map(chr, range(97,123)) + [' ']
     seq = []
 
     for t in range(len(observations)):

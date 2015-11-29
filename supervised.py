@@ -32,10 +32,10 @@ def logistic_test(text, feature_v):
     assert len(text) == len(feature_v)
     text = list(text)
     feature_v = np.array(feature_v)
-    cutoff = int(len(text) * 0.8)
+    cutoff = int(len(text) * 0.85)
     logreg = linear_model.LogisticRegression(C=1e5)
     logreg.fit(feature_v[:cutoff], text[:cutoff])
-    rbf_svm = svm.SVC(kernel='rbf', gamma=0.7, C=1.0)
+    rbf_svm = svm.SVC(kernel='rbf', gamma=0.7/len(feature_v[0]), C=1)
     rbf_svm.fit(feature_v[:cutoff], text[:cutoff])
 
     def get_score(model):
@@ -59,7 +59,7 @@ def logistic(text, feature_v, letters=valid_letters):
     #test = pairing[cutoff:]
     test = training
 
-    weights = {c: np.random.randn(feature_v.shape[1] + 1) for c in letters}
+    weights = {c: 1.0 / len(feature_v[0]) * np.random.randn(feature_v.shape[1] + 1) for c in letters}
 
     def sigmoid(w, x):
         '''Numerically stable sigmoid function'''
@@ -176,9 +176,9 @@ rate, data, text = load_data('data/sound7.wav', 'data/text7.txt')
 starts, ends, chunks = get_chunk_starts(data)
 
 f = get_features(data, starts, ends)
-# means, stds, score = naive_bayes(text, f)
+means, stds, score = naive_bayes(text, f)
 #
-# print 'Naive Bayes', score
+print 'Naive Bayes', score
 #
 # weights, score = logistic(text, f)
 # print 'Logistic', score

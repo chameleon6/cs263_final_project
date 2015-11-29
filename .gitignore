@@ -3,3 +3,4 @@ cache/*
 data/*
 sound*.wav
 text*.txt
+.DS_Store
