@@ -22,6 +22,9 @@ def load_data(wav_file, text_file):
     if len(data.shape) == 2 and data.shape[1] == 2:
         data = (data[:, 0] + data[:, 1])/2
 
+    # Normalize
+    data = data/np.mean(data)
+
     text = ''
     with open(text_file, 'r') as f:
         text = f.read()

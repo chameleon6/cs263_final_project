@@ -4,8 +4,10 @@ from langmodel import valid_letters
 import numpy as np
 import scipy
 import random
+import sys
 
 from sklearn import linear_model, svm
+from sklearn.externals import joblib
 
 prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
          0.012621361579079272, 'c': 0.025518818692412935, 'd':
@@ -26,6 +28,14 @@ prior_v = np.zeros(len(valid_letters))
 for c in prior:
     prior_v[valid_letters.index(c)] = prior[c]
 
+def get_score(model, test_features, test_text):
+    test_preds = model.predict(test_features)
+    score = 0
+    for l1,l2 in zip(test_preds, test_text):
+        if l1 == l2:
+            score += 1
+    return score/float(len(test_preds))
+
 def logistic_test(text, feature_v):
     '''Logistic regression, SVM'''
 
@@ -35,19 +45,20 @@ def logistic_test(text, feature_v):
     cutoff = int(len(text) * 0.85)
     logreg = linear_model.LogisticRegression(C=1e5)
     logreg.fit(feature_v[:cutoff], text[:cutoff])
+    test_features = feature_v[cutoff:]
+    test_text = text[cutoff:]
+    return get_score(logreg, test_features, test_text), logreg
+
+def svm_test(text, feature_v):
+    assert len(text) == len(feature_v)
+    text = list(text)
+    feature_v = np.array(feature_v)
+    cutoff = int(len(text) * 0.85)
     rbf_svm = svm.SVC(kernel='rbf', gamma=0.7/len(feature_v[0]), C=1)
     rbf_svm.fit(feature_v[:cutoff], text[:cutoff])
-
-    def get_score(model):
-        test_preds = model.predict(feature_v[cutoff:])
-        test_letters = text[cutoff:]
-        score = 0
-        for l1,l2 in zip(test_preds, test_letters):
-            if l1 == l2:
-                score += 1
-        return score/float(len(test_preds))
-
-    return get_score(logreg), get_score(rbf_svm), logreg, rbf_svm
+    test_features = feature_v[cutoff:]
+    test_text = text[cutoff:]
+    return get_score(rbf_svm, test_features, test_text), rbf_svm
 
 def logistic(text, feature_v, letters=valid_letters):
     feature_v = np.array(feature_v)
@@ -172,17 +183,35 @@ def naive_bayes(text, feature_v, letters=valid_letters):
     print ''.join(real)
     return means, stds, score/float(len(test))
 
-rate, data, text = load_data('data/sound7.wav', 'data/text7.txt')
+if len(sys.argv) != 3:
+    print 'Usage: %s training|test number' % sys.argv[0]
+
+soundf = 'data/sound%s.wav' % sys.argv[2]
+textf = 'data/text%s.txt' % sys.argv[2]
+
+rate, data, text = load_data(soundf, textf)
 starts, ends, chunks = get_chunk_starts(data)
-
 f = get_features(data, starts, ends)
-means, stds, score = naive_bayes(text, f)
-#
-print 'Naive Bayes', score
-#
-# weights, score = logistic(text, f)
-# print 'Logistic', score
 
-logreg_score, svm_score, logreg, svm = logistic_test(text, f)
-print 'Logistic test', logreg_score
-print 'SVM test', svm_score
+if sys.argv[1] == 'training':
+    means, stds, score = naive_bayes(text, f)
+    #
+    print 'Naive Bayes', score
+    #
+    # weights, score = logistic(text, f)
+    # print 'Logistic', score
+
+    logreg_score, logreg = logistic_test(text, f)
+    svm_score, svm = svm_test(text, f)
+    joblib.dump(logreg, 'cache/logistic.pkl')
+    print 'Logistic test', logreg_score
+    print 'SVM test', svm_score
+else:
+    try:
+        logreg = joblib.load('cache/logistic.pkl')
+    except:
+        print 'Run `%s training 7` to train your model first' % sys.argv[0]
+        sys.exit()
+    print get_score(logreg, f, text)
+    print ''.join(logreg.predict(f))
+
