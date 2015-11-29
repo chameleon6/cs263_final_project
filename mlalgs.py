@@ -214,7 +214,7 @@ def clusterize(ls, spaces, num_clusters=numclusters, soft_cluster=False):
     bestclusters = 0
     bestmeans = 0
     bestscore = 1e1000000
-    for i in range(10):
+    for i in range(3):
         print 'Try', i
         if soft_cluster:
             clusters, means, score = clusterize_inner_soft(ls, spaces, num_clusters)
@@ -330,6 +330,7 @@ def baum_welch_inner(pi, theta, observations, spaces, text, numclusters=numclust
     K = len(pi) # Number of hidden states
     T = len(observations)
     phi = np.random.rand(len(pi), numclusters)
+    phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
     phi[26, :] = 0
     for i in spaces:
         phi[26, i] += 1.0 / len(spaces)

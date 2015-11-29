@@ -198,12 +198,21 @@ if USE_PCA:
 if CURRENT_STAGE == 'Feature':
     sys.exit()
 
+'''
+from hmmlearn import hmm
+
+model = hmm.GaussianHMM(n_components=27, covariance_type="diag", n_iter=1000).fit(features)
+hidden_states = model.predict(feature_v)
+print hidden_states
+
+sys.exit()
+'''
+
 ###################################################################
 # Clustering
 ###################################################################
 
-clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces,
-        soft_cluster=True, debug=True)
+clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces, debug=True)
 n_clusters = len(clusters)
 
 if 'Clustering' in PRINT_SET:
