@@ -210,18 +210,45 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, spaces, num_clusters=numclusters):
+def clusterize(ls, spaces, num_clusters=numclusters, soft_cluster=False):
     bestclusters = 0
     bestmeans = 0
     bestscore = 1e1000000
     for i in range(10):
         print 'Try', i
-        clusters, means, score = clusterize_inner(ls, spaces, num_clusters)
+        if soft_cluster:
+            clusters, means, score = clusterize_inner_soft(ls, spaces, num_clusters)
+        else:
+            clusters, means, score = clusterize_inner(ls, spaces, num_clusters)
         if score < bestscore:
             bestmeans = means
             bestclusters = clusters
             bestscore = score
     return bestclusters, bestmeans
+
+def clusterize_inner_soft(X, spaces, num_clusters=numclusters):
+    m = len(X)
+    X_mean = mean(X,0)
+    X_sd = np.std(X,0)
+    X = (X - X_mean) / X_sd
+
+    feature_len = len(X[0])
+    not_spaces = [i for i in range(len(X)) if i not in spaces]
+    means = random.sample(X[spaces], 3) + random.sample(X[not_spaces], num_clusters-3)
+    means = np.array(means)
+    Z = np.zeros((m, num_clusters))
+
+    for j in range(40):
+        # E step
+        for i in range(m):
+            Z[i] = -np.exp(np.sum((means - X[i])**2, 1))
+            Z[i] = Z[i] / np.sum(Z[i])
+
+        # M step
+        means[i] = Z.T.dot(X) / np.sum(Z,0)[:,newaxis]
+
+    score = np.norm(X - np.dot(Z, means))
+    return Z, None, score
 
 def clusterize_inner(ls, spaces, num_clusters=numclusters):
     '''Clusters the objects (np arrays) in ls into clusters
@@ -333,7 +360,8 @@ def baum_welch_inner(pi, theta, observations, spaces, text, numclusters=numclust
         # M-step
         phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
         valid_letters = map(chr, range(97,123)) + [' ']
-        seq = []
+
+    seq = []
 
     for t in range(len(observations)):
         seq.append(valid_letters[np.argmax(gamma[t, :])])

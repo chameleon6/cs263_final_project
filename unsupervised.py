@@ -202,7 +202,8 @@ if CURRENT_STAGE == 'Feature':
 # Clustering
 ###################################################################
 
-clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces, debug=True)
+clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces,
+        soft_cluster=True, debug=True)
 n_clusters = len(clusters)
 
 if 'Clustering' in PRINT_SET:
