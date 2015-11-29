@@ -5,6 +5,8 @@ import numpy as np
 import scipy
 import random
 
+from sklearn import linear_model
+
 prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
          0.012621361579079272, 'c': 0.025518818692412935, 'd':
          0.03262728212110697, 'e': 0.10277443948100279, 'f':
@@ -23,6 +25,23 @@ prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
 prior_v = np.zeros(len(valid_letters))
 for c in prior:
     prior_v[valid_letters.index(c)] = prior[c]
+
+def logistic_test(text, feature_v):
+    assert len(text) == len(feature_v)
+    text = list(text)
+    feature_v = np.array(feature_v)
+    cutoff = int(len(text) * 0.8)
+    logreg = linear_model.LogisticRegression(C=1e5)
+    logreg.fit(feature_v[:cutoff], text[:cutoff])
+    test_preds = logreg.predict(feature_v[cutoff:])
+    test_letters = text[cutoff:]
+
+    score = 0
+    for l1,l2 in zip(test_preds, test_letters):
+        if l1 == l2:
+            score += 1
+
+    return logreg, score/float(len(test_preds))
 
 def logistic(text, feature_v, letters=valid_letters):
     feature_v = np.array(feature_v)
@@ -151,9 +170,12 @@ rate, data, text = load_data('data/sound7.wav', 'data/text7.txt')
 starts, ends, chunks = get_chunk_starts(data)
 
 f = get_features(data, starts, ends)
-means, stds, score = naive_bayes(text, f)
+# means, stds, score = naive_bayes(text, f)
+#
+# print 'Naive Bayes', score
+#
+# weights, score = logistic(text, f)
+# print 'Logistic', score
 
-print 'Naive Bayes', score
-
-weights, score = logistic(text, f)
-print 'Logistic', score
+logreg, score = logistic_test(text, f)
+print 'Logistic test', score
