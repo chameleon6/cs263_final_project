@@ -41,7 +41,8 @@ DATA_FILES = {
 # the fraction of the file we use
 file_range = (0, 1.0)
 
-USE_PCA = False
+SOFT_CLUSTER = True
+USE_PCA = True
 DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
@@ -52,7 +53,7 @@ PLOT_SET = set([
 PRINT_SET = set([
     'Segmentation',
     'Feature',
-    'Clustering',
+    #'Clustering',
 ])
 CURRENT_STAGE = 'HMM' # or Segmentation, Feature, Clustering, HMM
 
@@ -171,7 +172,7 @@ if CURRENT_STAGE == 'Segmentation':
 # Feature Extraction
 ###################################################################
 
-features = cache_or_compute('cache/features.npy', get_features, data, inds, ends, debug=True)
+features = cache_or_compute('cache/features.npy', get_features, data, inds, ends, debug=False)
 
 plot_group(PLOT_SET, 'Cepstrum Plot',
             #features[10],
@@ -184,10 +185,12 @@ plot_group(PLOT_SET, 'Cepstrum Plot',
 features = np.array(features)
 
 if USE_PCA:
-    pca = PCA(n_components=16)
+    pca = PCA(n_components=30)
     pca.fit(features)
     if 'Feature' in PRINT_SET:
-        print pca.explained_variance_ratio_
+        print "explained variances", pca.explained_variance_ratio_
+        print "total explained var", sum(pca.explained_variance_ratio_)
+
     features = pca.transform(features)
     plot_group(PLOT_SET, 'PCA Plot',
                features[spaces[0]],
@@ -212,46 +215,49 @@ sys.exit()
 # Clustering
 ###################################################################
 
-clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces, debug=True)
-n_clusters = len(clusters)
+for _ in range(10):
+    print "beginning clustering"
+    clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces,
+            SOFT_CLUSTER, debug=True)
+    n_clusters = len(clusters)
 
-if 'Clustering' in PRINT_SET:
-    print zip(text, clusters)
-    cluster_given_letter = {}
-    letter_given_cluster = {}
+    if 'Clustering' in PRINT_SET:
+        print zip(text, clusters)
+        cluster_given_letter = {}
+        letter_given_cluster = {}
 
-    log_likeliness = 0
-    for char, clust in zip(text, clusters):
-        if char not in cluster_given_letter:
-            cluster_given_letter[char] = {}
-        if clust not in letter_given_cluster:
-            letter_given_cluster[clust] = {}
-        cluster_given_letter[char][clust] = cluster_given_letter[char].get(clust, 0) + 1
-        letter_given_cluster[clust][char] = letter_given_cluster[clust].get(char, 0) + 1
-    for char, clust in zip(text, clusters)[:60]: # not sure when we make first chunk mistake
-        s = sum(letter_given_cluster[clust].values())
-        log_likeliness += math.log(letter_given_cluster[clust][char]/float(s))
+        log_likeliness = 0
+        for char, clust in zip(text, clusters):
+            if char not in cluster_given_letter:
+                cluster_given_letter[char] = {}
+            if clust not in letter_given_cluster:
+                letter_given_cluster[clust] = {}
+            cluster_given_letter[char][clust] = cluster_given_letter[char].get(clust, 0) + 1
+            letter_given_cluster[clust][char] = letter_given_cluster[clust].get(char, 0) + 1
+        for char, clust in zip(text, clusters)[:60]: # not sure when we make first chunk mistake
+            s = sum(letter_given_cluster[clust].values())
+            log_likeliness += math.log(letter_given_cluster[clust][char]/float(s))
 
-    print 'Cluster given letter'
-    for char in cluster_given_letter:
-        print "CHARACTER:", char
-        print_dict_sorted(cluster_given_letter[char])
-    print 'Letter given cluster'
-    for clust in letter_given_cluster:
-        print "CLUSTER:", clust
-        print_dict_sorted(letter_given_cluster[clust])
+        print 'Cluster given letter'
+        for char in cluster_given_letter:
+            print "CHARACTER:", char
+            print_dict_sorted(cluster_given_letter[char])
+        print 'Letter given cluster'
+        for clust in letter_given_cluster:
+            print "CLUSTER:", clust
+            print_dict_sorted(letter_given_cluster[clust])
 
-    print 'Log likelihood given cluster: ', log_likeliness
+        print 'Log likelihood given cluster: ', log_likeliness
 
-if CURRENT_STAGE == 'Clustering':
-    sys.exit()
+    if CURRENT_STAGE == 'Clustering':
+        sys.exit()
 
-###################################################################
-# HMM Coefficient computation
-###################################################################
+    ###################################################################
+    # HMM Coefficient computation
+    ###################################################################
 
-spaces = [c for s, c in zip(text, clusters) if s == ' ']
-baum_welch(pi_v, theta_v, clusters, spaces, text)
+    spaces_bw = [c for s, c in zip(text, clusters) if s == ' ']
+    baum_welch(pi_v, theta_v, clusters, spaces_bw, text, SOFT_CLUSTER)
 
 '''
 The following HMM code doesn't work as well as baum-welch and is slower.
