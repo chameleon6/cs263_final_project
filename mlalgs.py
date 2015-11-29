@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import cPickle as pickle
 import random
 from sklearn.decomposition import PCA
+from sklearn.mixture import GMM
 from python_speech_features.features import mfcc
 from scipy import signal
 
@@ -210,11 +211,12 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, spaces, num_clusters=numclusters, soft_cluster=False):
+def clusterize(ls, spaces, soft_cluster, num_iterations=30, num_clusters=numclusters):
+    print "using soft assignments:", soft_cluster
     bestclusters = 0
     bestmeans = 0
     bestscore = 1e1000000
-    for i in range(10):
+    for i in range(num_iterations):
         print 'Try', i
         if soft_cluster:
             clusters, means, score = clusterize_inner_soft(ls, spaces, num_clusters)
@@ -224,31 +226,76 @@ def clusterize(ls, spaces, num_clusters=numclusters, soft_cluster=False):
             bestmeans = means
             bestclusters = clusters
             bestscore = score
+        print "Try", i, "score", score
+    print "Best score:", bestscore
     return bestclusters, bestmeans
 
 def clusterize_inner_soft(X, spaces, num_clusters=numclusters):
+
+    # EM
+    covar_type = "tied" #['spherical', 'diag', 'tied', 'full']
+    classifier = GMM(n_components=num_clusters, covariance_type=covar_type,
+            init_params='wc', n_iter=20)
+    not_spaces = [i for i in range(len(X)) if i not in spaces]
+    means = random.sample(X[spaces], 3) + random.sample(X[not_spaces], num_clusters-3)
+    classifier.means_ = np.array(means)
+    classifier.fit(X)
+
+    #print "predict", classifier.predict(X)
+    #print "means", classifier.means_
+    #print "score", classifier.score(X)
+    return classifier.predict_proba(X), classifier.means_, -np.sum(classifier.score(X))
+
+    """
+    This is soft k means, which doesn't work well
+
+    def standardized(X):
+        X_mean = np.mean(X,0)
+        X_sd = np.std(X,0)
+        return (X - X_mean) / X_sd
+
     m = len(X)
-    X_mean = mean(X,0)
-    X_sd = np.std(X,0)
-    X = (X - X_mean) / X_sd
+    X = standardized(X)
 
     feature_len = len(X[0])
     not_spaces = [i for i in range(len(X)) if i not in spaces]
     means = random.sample(X[spaces], 3) + random.sample(X[not_spaces], num_clusters-3)
     means = np.array(means)
+    variances = np.ones((num_clusters, feature_len))
+
     Z = np.zeros((m, num_clusters))
 
-    for j in range(40):
+    def compute_variances():
+        variances = np.zeros((num_clusters, feature_len))
+        for i in range(num_clusters):
+            variances[i] = Z.T[i].dot((X - means[i])**2) / np.sum(Z.T[i])
+        print "V:", variances
+        return variances
+
+    for j in range(20):
         # E step
         for i in range(m):
-            Z[i] = -np.exp(np.sum((means - X[i])**2, 1))
+            dists = np.sum((means - X[i])**2 / variances, 1)
+            #dists = dists - dists[0]
+            #Z[i] = np.exp(-dists)
+            Z[i] = 1/(dists + 0.1)
             Z[i] = Z[i] / np.sum(Z[i])
+            #print "Z"
+            #print Z[i]
+            #print "dist"
+            #print dists
+            #print "sum"
+            #print np.sum(Z[i])
+
 
         # M step
-        means[i] = Z.T.dot(X) / np.sum(Z,0)[:,newaxis]
+        means = Z.T.dot(X) / np.sum(Z,0)[:,np.newaxis]
+        print "M", means
+        variances = compute_variances()
 
-    score = np.norm(X - np.dot(Z, means))
+    score = np.linalg.norm(X - np.dot(Z, means))
     return Z, None, score
+    """
 
 def clusterize_inner(ls, spaces, num_clusters=numclusters):
     '''Clusters the objects (np arrays) in ls into clusters
@@ -325,40 +372,50 @@ def print_dict_sorted(d):
     for i in range(0, len(l), 5):
         print '         '.join(l[i: i+5])
 
-def baum_welch_inner(pi, theta, observations, spaces, text, numclusters=numclusters):
+def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclusters=numclusters):
     # Theta is transition probability: i-jth entry is transition from i to j
     K = len(pi) # Number of hidden states
     T = len(observations)
     phi = np.random.rand(len(pi), numclusters)
     phi[26, :] = 0
     for i in spaces:
-        phi[26, i] += 1.0 / len(spaces)
+        if soft_cluster:
+            for clust_ind, prob in enumerate(i):
+                phi[26, clust_ind] += prob / len(spaces)
+        else:
+            phi[26, i] += 1.0 / len(spaces)
+
+    if soft_cluster:
+        characteristic = observations
+    else:
+        characteristic = np.zeros((T, numclusters))
+        for t, o in enumerate(observations):
+            characteristic[t, o] = 1
 
     for iteration in range(150):
         # E-step
         # First, the forward-backward algorithm
         alpha = np.zeros((T, K))
         scale = np.zeros(T)
-        alpha[0, :] = pi * phi[:, observations[0]]
+        #alpha[0, :] = pi * phi[:, observations[0]]
+        alpha[0, :] = pi * phi.dot(observations[0])
         scale[0] = np.sum(alpha[0, :])
         alpha[0, :] = alpha[0, :] / scale[0]
         for t in range(1, T):
-            alpha[t, :] = np.dot(alpha[t-1, :], theta) * phi[:, observations[t]]
+            alpha[t, :] = np.dot(alpha[t-1, :], theta) * phi.dot(observations[t])
             scale[t] = np.sum(alpha[t, :])
             alpha[t, :] = alpha[t, :]/scale[t]
 
         beta = np.zeros((T, K))
         beta[T-1, :] = 1
         for t in range(T-2, -1, -1):
-            beta[t, :] = np.dot(theta, phi[:, observations[t+1]] * beta[t+1, :]) / scale[t+1]
+            beta[t, :] = np.dot(theta, phi.dot(observations[t+1]) * beta[t+1, :]) / scale[t+1]
 
         gamma = alpha * beta
-        characteristic = np.zeros((T, numclusters))
-        for t, o in enumerate(observations):
-            characteristic[t, o] = 1
 
         # M-step
         phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
+        #phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
         valid_letters = map(chr, range(97,123)) + [' ']
 
     seq = []
@@ -370,13 +427,13 @@ def baum_welch_inner(pi, theta, observations, spaces, text, numclusters=numclust
     return phi, np.sum(np.log(scale))
 
 
-def baum_welch(pi, theta, observations, spaces, text):
+def baum_welch(pi, theta, observations, spaces, text, soft_cluster):
     best_score = -1e1000000
     besti = 0
     bestphi = 0
     for i in range(15):
         print 'Tries', i
-        phi, score = baum_welch_inner(pi, theta, observations, spaces, text)
+        phi, score = baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster)
         if score > best_score:
             besti = i
             best_score = score
