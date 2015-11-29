@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 import random
 
-from sklearn import linear_model
+from sklearn import linear_model, svm
 
 prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
          0.012621361579079272, 'c': 0.025518818692412935, 'd':
@@ -27,21 +27,27 @@ for c in prior:
     prior_v[valid_letters.index(c)] = prior[c]
 
 def logistic_test(text, feature_v):
+    '''Logistic regression, SVM'''
+
     assert len(text) == len(feature_v)
     text = list(text)
     feature_v = np.array(feature_v)
     cutoff = int(len(text) * 0.8)
     logreg = linear_model.LogisticRegression(C=1e5)
     logreg.fit(feature_v[:cutoff], text[:cutoff])
-    test_preds = logreg.predict(feature_v[cutoff:])
-    test_letters = text[cutoff:]
+    rbf_svm = svm.SVC(kernel='rbf', gamma=0.7, C=1.0)
+    rbf_svm.fit(feature_v[:cutoff], text[:cutoff])
 
-    score = 0
-    for l1,l2 in zip(test_preds, test_letters):
-        if l1 == l2:
-            score += 1
+    def get_score(model):
+        test_preds = model.predict(feature_v[cutoff:])
+        test_letters = text[cutoff:]
+        score = 0
+        for l1,l2 in zip(test_preds, test_letters):
+            if l1 == l2:
+                score += 1
+        return score/float(len(test_preds))
 
-    return logreg, score/float(len(test_preds))
+    return get_score(logreg), get_score(rbf_svm), logreg, rbf_svm
 
 def logistic(text, feature_v, letters=valid_letters):
     feature_v = np.array(feature_v)
@@ -177,5 +183,6 @@ f = get_features(data, starts, ends)
 # weights, score = logistic(text, f)
 # print 'Logistic', score
 
-logreg, score = logistic_test(text, f)
-print 'Logistic test', score
+logreg_score, svm_score, logreg, svm = logistic_test(text, f)
+print 'Logistic test', logreg_score
+print 'SVM test', svm_score
