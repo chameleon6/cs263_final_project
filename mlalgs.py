@@ -93,12 +93,12 @@ def power_graph(x, fs=44100, framesz=0.01, hop=0.005):
                      for i in range(0, len(x)-framesamp, hopsamp)])
     return np.sqrt(np.sum(np.absolute(X)**2, axis=1))
 
-preceding_gap = 1000
-keypress_first_filter_len = 3000 + preceding_gap
-max_keypress_len = 10000 + preceding_gap
-min_keypress_len = 5000 + preceding_gap
-
 def get_chunk_starts_simpler(data):
+    preceding_gap = 1000
+    keypress_first_filter_len = 3000 + preceding_gap
+    max_keypress_len = 10000 + preceding_gap
+    min_keypress_len = 5000 + preceding_gap
+
     keypress_first_filter_len = 3000
     max_keypress_len = 10000
     min_keypress_len = 5000
@@ -214,18 +214,19 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, spaces, soft_cluster, num_iterations=1, num_clusters=numclusters):
+def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=5, num_clusters=numclusters):
     print "using soft assignments:", soft_cluster
+    cluster_fun = clusterize_inner_soft if soft_cluster else clusterize_inner
+
     bestclusters = 0
     bestmeans = 0
-    bestscore = 1e1000000
+    bestscore = -1e1000000
     for i in range(num_iterations):
         print 'Try', i
-        if soft_cluster:
-            clusters, means, score = clusterize_inner_soft(ls, spaces, num_clusters)
-        else:
-            clusters, means, score = clusterize_inner(ls, spaces, num_clusters)
-        if score < bestscore:
+        clusters, means, score = cluster_fun(ls, spaces, num_clusters)
+        spaces_bw = [clusters[i] for i in spaces]
+        phi, score = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, soft_cluster, 5)
+        if score > bestscore:
             bestmeans = means
             bestclusters = clusters
             bestscore = score
@@ -310,7 +311,8 @@ def clusterize_inner(ls, spaces, num_clusters=numclusters):
     n = len(ls[0])
     m = len(ls)
     notspaces = [i for i in range(len(ls)) if i not in spaces]
-    means = random.sample(ls[spaces], 3) + random.sample(ls[notspaces], num_clusters-3)
+    space_clusts = min(3, num_clusters-1)
+    means = random.sample(ls[spaces], space_clusts) + random.sample(ls[notspaces], num_clusters-space_clusts)
     #variances = [np.identity(n) for _ in range(m)]
     assignments = [0 for i in range(len(ls))]
     dead_cluster = {}
@@ -398,6 +400,16 @@ def hmm_gamma(pi, theta, phi, observations):
 
     return alpha * beta, np.sum(np.log(scale))
 
+def hmm_predict(pi, theta, phi, observations):
+    valid_letters = map(chr, range(97,123)) + [' ']
+    seq = []
+
+    gamma, _ = hmm_gamma(pi, theta, phi, observations)
+
+    for t in range(len(observations)):
+        seq.append(valid_letters[np.argmax(gamma[t, :])])
+    return ''.join(seq)
+
 def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclusters=numclusters):
     # Theta is transition probability: i-jth entry is transition from i to j
     K = len(pi) # Number of hidden states
@@ -424,28 +436,19 @@ def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclu
         gamma, loglikelihood = hmm_gamma(pi, theta, phi, observations)
         # M-step
         phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
-        #phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
 
-    valid_letters = map(chr, range(97,123)) + [' ']
-    seq = []
-
-    for t in range(len(observations)):
-        seq.append(valid_letters[np.argmax(gamma[t, :])])
-    print ''.join(seq)
-    print len([1 for s, c in zip(seq, text) if s == c])/float(len(seq))
     return phi, loglikelihood
 
 
-def baum_welch(pi, theta, observations, spaces, text, soft_cluster):
+def baum_welch(pi, theta, observations, spaces, text, soft_cluster, iterations):
     best_score = -1e1000000
     besti = 0
     bestphi = 0
-    for i in range(4):
+    for i in range(iterations):
         print 'Tries', i
         phi, score = baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster)
         if score > best_score:
             besti = i
             best_score = score
             bestphi = phi
-    print best_score, besti
     return bestphi, score
