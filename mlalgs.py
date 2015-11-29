@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 from python_speech_features.features import mfcc
 from scipy import signal
 
-numclusters = 48
+numclusters = 60
 
 def load_data(wav_file, text_file):
     rate, data = scipy.io.wavfile.read(wav_file)
@@ -332,8 +332,8 @@ def baum_welch_inner(pi, theta, observations, spaces, text, numclusters=numclust
 
         # M-step
         phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
-        valid_letters = map(chr, range(97,123)) + [' ']
-        seq = []
+    valid_letters = map(chr, range(97,123)) + [' ']
+    seq = []
 
     for t in range(len(observations)):
         seq.append(valid_letters[np.argmax(gamma[t, :])])
