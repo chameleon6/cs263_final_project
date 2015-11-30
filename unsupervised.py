@@ -18,6 +18,7 @@ from mlalgs import (
     plot_group,
     baum_welch,
     longest_common_subseq,
+    spell_check,
     hmm_predict
 )
 
@@ -39,8 +40,6 @@ def find_spaces(data, starts, ends):
         space_clust = 1
     spaces = [i for i in range(len(starts)) if clusts[i] == space_clust]
     return spaces
-
-pi, A, pi_v, theta_v = compute_bigram()
 
 ###################################################################
 # Constants and debugging control
@@ -72,17 +71,28 @@ CURRENT_STAGE = 'HMM' # or Segmentation, Feature, Clustering, HMM
 def cache_or_compute(fname, fun, *args, **kwargs):
     if DEBUG or ("debug" in kwargs and kwargs["debug"]):
         c = fun(*args)
-        #np.save(fname, c)
+        np.save(fname, c)
         return c
     try:
-        print "using cache at", fname, "for", fun
+        print "Trying to use cache at", fname, "for", fun
         return np.load(fname)
     except IOError:
+        print "cache not found. Recomputing"
         c = fun(*args)
         np.save(fname, c)
         return c
 
 rate, data, text = load_data(DATA_FILES['sound'], DATA_FILES['text'])
+
+pi, A, pi_v, theta_v, word_freq = cache_or_compute("cache/bigram.npy", compute_bigram,
+        debug=False)
+
+"""
+spaces = []
+for (i,c) in enumerate(text):
+    if c == ' ':
+        spaces.append(i)
+        """
 
 ###################################################################
 # Segmentation
@@ -99,7 +109,7 @@ if not isinstance(starts, list):
 if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
-spaces = find_spaces(data, starts, ends)
+spaces = cache_or_compute("cache/spaces.npy", find_spaces, data, starts, ends)
 '''
 Cheating:
 spaces = []
@@ -131,7 +141,7 @@ if CURRENT_STAGE == 'Segmentation':
 # Feature Extraction
 ###################################################################
 
-features = cache_or_compute('cache/features.npy', get_features, data, starts, ends, debug=True)
+features = cache_or_compute('cache/features.npy', get_features, data, starts, ends, debug=False)
 
 plot_group(PLOT_SET, 'Cepstrum Plot',
            features[spaces[0]],
@@ -140,7 +150,7 @@ plot_group(PLOT_SET, 'Cepstrum Plot',
 features = np.array(features)
 
 if USE_PCA:
-    pca = PCA(n_components=30)
+    pca = PCA(n_components=80)
     pca.fit(features)
     if 'Feature' in PRINT_SET:
         print "explained variances", pca.explained_variance_ratio_
@@ -168,10 +178,9 @@ sys.exit()
 ###################################################################
 # Clustering
 ###################################################################
-
 print "beginning clustering"
 clusters, means = cache_or_compute('cache/clusters.npy', clusterize, features, spaces,
-        SOFT_CLUSTER, pi_v, theta_v, text, debug=True)
+        SOFT_CLUSTER, pi_v, theta_v, text, debug=False)
 n_clusters = len(clusters)
 
 if 'Clustering' in PRINT_SET:
@@ -210,11 +219,12 @@ if CURRENT_STAGE == 'Clustering':
 ###################################################################
 
 spaces_bw = [clusters[i] for i in spaces]
-phi, _ = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 15)
-predicted = hmm_predict(pi_v, theta_v, phi, clusters)
+phi, score, seq, gamma = cache_or_compute("hmm.npy", baum_welch, pi_v,
+        theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 5, debug=True)
+spell_checked_seq = spell_check(gamma, seq, word_freq)
 
-print '==============================='
-print '==============================='
-print '==============================='
-print '==============================='
-print predicted
+def score_final_output(seq):
+    return len([1 for c,c2 in zip(seq, text) if c == c2])/float(len(text))
+
+print "Before spell check", score_final_output(seq)
+print "After spell check", score_final_output(spell_checked_seq)

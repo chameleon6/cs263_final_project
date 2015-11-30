@@ -4,6 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cPickle as pickle
 import random
+
+from langmodel import valid_letters
+
 from sklearn.decomposition import PCA
 from sklearn.mixture import GMM
 from python_speech_features.features import mfcc
@@ -217,6 +220,7 @@ def get_chunk_starts(data):
 def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=10, num_clusters=numclusters):
     print "using soft assignments:", soft_cluster
     cluster_fun = clusterize_inner_soft if soft_cluster else clusterize_inner
+    print cluster_fun
 
     bestclusters = 0
     bestmeans = 0
@@ -239,7 +243,7 @@ def clusterize_inner_soft(X, spaces, num_clusters=numclusters):
     # EM
     covar_type = "tied" #['spherical', 'diag', 'tied', 'full']
     classifier = GMM(n_components=num_clusters, covariance_type=covar_type,
-            init_params='wc', n_iter=20)
+            init_params='wc', n_iter=50)
     not_spaces = [i for i in range(len(X)) if i not in spaces]
     means = random.sample(X[spaces], 3) + random.sample(X[not_spaces], num_clusters-3)
     classifier.means_ = np.array(means)
@@ -305,6 +309,7 @@ def clusterize_inner(ls, spaces, num_clusters=numclusters):
     '''Clusters the objects (np arrays) in ls into clusters
     The current algorithm is k-means
     '''
+
     def distance(a, b):
         return np.linalg.norm(a-b)
 
@@ -436,19 +441,76 @@ def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclu
         gamma, loglikelihood = hmm_gamma(pi, theta, phi, observations)
         # M-step
         phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
+        phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
 
-    return phi, loglikelihood
+    #valid_letters = map(chr, range(97,123)) + [' ']
 
+    seq = []
+    for t in range(len(observations)):
+        seq.append(valid_letters[np.argmax(gamma[t, :])])
+    print ''.join(seq)
+    print len([1 for s, c in zip(seq, text) if s == c])/float(len(seq))
+    return phi, loglikelihood, seq, gamma
 
 def baum_welch(pi, theta, observations, spaces, text, soft_cluster, iterations):
     best_score = -1e1000000
     besti = 0
     bestphi = 0
+    best_seq = None
+    best_gamma = None
     for i in range(iterations):
         print 'Tries', i
-        phi, score = baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster)
+        phi, score, seq, gamma = baum_welch_inner(pi, theta,
+                observations, spaces, text, soft_cluster)
         if score > best_score:
             besti = i
             best_score = score
             bestphi = phi
-    return bestphi, score
+            best_seq = seq
+            best_gamma = gamma
+
+    print best_score, besti, "".join(best_seq)
+    return bestphi, score, best_seq, best_gamma
+
+def spell_check(gamma, seq, word_freq):
+
+    def get_best_word(hmm_w):
+        inds = map(np.argmax, hmm_w)
+        #print hmm_w, inds
+        best_word = "".join(valid_letters[inds])
+        ps = [hmm_w[i][inds[i]] for i in range(len(inds))]
+        best_word_log_prob = np.sum(np.log(ps))
+        #print best_word, best_word_log_prob
+        best_word_log_prob += np.log(word_freq.get(best_word, 0.00001))
+
+        for w_guess in word_freq:
+            if len(w_guess) != len(hmm_w):
+                continue
+            inds = np.array(map(ord, w_guess)) - 97
+            #print w_guess, inds
+            ps = [hmm_w[i][inds[i]] for i in range(len(inds))]
+            w_log_prob = np.sum(np.log(ps)) + np.log(word_freq[w_guess])
+            if w_log_prob > best_word_log_prob:
+                best_word_log_prob = w_log_prob
+                best_word = w_guess
+                #print best_word, best_word_log_prob
+
+        print best_word
+        return best_word
+
+    assert len(gamma) == len(seq)
+    for i in gamma:
+        assert np.abs(np.sum(i) - 1) < 0.001
+    is_space = {i:True for (i,x) in enumerate(seq) if x == ' '}
+    hmm_words = [[]]
+    for i, x in enumerate(gamma):
+        if i in is_space:
+            hmm_words.append([])
+        else:
+            hmm_words[-1].append(x)
+
+    spell_checked_words = []
+    for w in hmm_words:
+        spell_checked_words.append(get_best_word(np.array(w)))
+
+    return " ".join(spell_checked_words)
