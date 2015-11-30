@@ -406,13 +406,28 @@ def hmm_gamma(pi, theta, phi, observations):
     return alpha * beta, np.sum(np.log(scale))
 
 def hmm_predict(pi, theta, phi, observations):
+    # Viterbi's algorithm
+    T = len(observations)
+    K = len(pi) # Number of hidden states
+
+    v = np.zeros((T, K))
+    v[0] = np.log(pi) + np.log(phi.dot(observations[0]))
+    for t in range(1, T):
+        v[t] = np.log(phi.dot(observations[t])) + np.max(v[t-1][:, np.newaxis] + np.log(theta), axis=0)
+
+    z = np.zeros((T-1, K))
+    for t in range(1, T):
+        z[t-1] = np.argmax(np.log(theta) + v[t-1][:, np.newaxis], axis=0)
+
+    seq = [' '] * T
+    seq[T-1] = int(np.argmax(v[T-1]))
+    for t in range(T-2, -1, -1):
+        seq[t] = int(z[t][int(seq[t+1])])
+
     valid_letters = map(chr, range(97,123)) + [' ']
-    seq = []
+    for i in range(T):
+        seq[i] = valid_letters[seq[i]]
 
-    gamma, _ = hmm_gamma(pi, theta, phi, observations)
-
-    for t in range(len(observations)):
-        seq.append(valid_letters[np.argmax(gamma[t, :])])
     return ''.join(seq)
 
 def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclusters=numclusters, phi=None):
@@ -446,10 +461,8 @@ def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclu
 
     #valid_letters = map(chr, range(97,123)) + [' ']
 
-    seq = []
-    for t in range(len(observations)):
-        seq.append(valid_letters[np.argmax(gamma[t, :])])
-    print ''.join(seq)
+    seq = hmm_predict(pi, theta, phi, observations)
+    print seq
     print len([1 for s, c in zip(seq, text) if s == c])/float(len(seq))
     return phi, loglikelihood, seq, gamma
 
