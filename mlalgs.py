@@ -214,7 +214,7 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=5, num_clusters=numclusters):
+def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=10, num_clusters=numclusters):
     print "using soft assignments:", soft_cluster
     cluster_fun = clusterize_inner_soft if soft_cluster else clusterize_inner
 
