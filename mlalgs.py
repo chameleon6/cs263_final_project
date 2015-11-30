@@ -254,7 +254,7 @@ def clusterize_inner_soft(X, spaces, num_clusters=numclusters):
     #print "score", classifier.score(X)
     return classifier.predict_proba(X), classifier.means_, -np.sum(classifier.score(X))
 
-    """
+    '''
     This is soft k means, which doesn't work well
 
     def standardized(X):
@@ -303,7 +303,7 @@ def clusterize_inner_soft(X, spaces, num_clusters=numclusters):
 
     score = np.linalg.norm(X - np.dot(Z, means))
     return Z, None, score
-    """
+    '''
 
 def clusterize_inner(ls, spaces, num_clusters=numclusters):
     '''Clusters the objects (np arrays) in ls into clusters

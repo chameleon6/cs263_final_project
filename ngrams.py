@@ -5,6 +5,7 @@ counts = {}
 valid_letters = map(chr, range(97,123)) + [' ']
 with open("full_text.txt", "r") as f:
     s = f.read()
+    s = s.lower()
     for c1, c2 in zip(s, s[1:]):
         if c1 not in valid_letters or c2 not in valid_letters:
             continue
