@@ -431,7 +431,7 @@ def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclu
         for t, o in enumerate(observations):
             characteristic[t, o] = 1
 
-    for iteration in range(150):
+    for iteration in range(200):
         # E-step
         gamma, loglikelihood = hmm_gamma(pi, theta, phi, observations)
         # M-step
