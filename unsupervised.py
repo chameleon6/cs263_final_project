@@ -7,6 +7,7 @@ import cPickle as pickle
 import random
 from sklearn.decomposition import PCA
 import re
+from supervised import logistic_test as logistic
 
 from mlalgs import (
     load_data,
@@ -21,7 +22,8 @@ from mlalgs import (
     longest_common_subseq,
     spell_check,
     hmm_predict,
-    numclusters
+    numclusters,
+    generate_k_dist_changes
 )
 
 from features import (
@@ -225,7 +227,7 @@ if CURRENT_STAGE == 'Clustering':
 
 spaces_bw = [clusters[i] for i in spaces]
 phi, score, seq, gamma = cache_or_compute("hmm.npy", baum_welch, pi_v,
-        theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 5, debug=True)
+        theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 5, debug=False)
 spell_checked_seq = spell_check(gamma, seq, word_freq)
 print ''.join(spell_checked_seq)
 
@@ -243,11 +245,11 @@ for character, cluster in zip(spell_checked_seq, clusters):
     counts[character] += cluster
 
 phi = np.random.rand(len(pi), numclusters)
-phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
 valid_letters = map(chr, range(97,123)) + [' ']
 for character in counts:
     phi[valid_letters.index(character), :] = counts[character]/np.sum(counts[character])
 
+phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
 phi, score, seq, gamma = baum_welch_inner(pi_v, theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, phi=phi)
 
 print '======================='
@@ -257,3 +259,22 @@ print ''.join(seq)
 print score_final_output(seq)
 print ''.join(spell_checked_seq)
 print score_final_output(spell_checked_seq)
+
+####################################################################
+# Supervised on top of unsupervised
+####################################################################
+
+final_text = "".join(spell_checked_seq)
+score, logreg = logistic(final_text, features)
+ml_seq = logreg.predict(password_features)
+letter_lls = logreg.predict_log_proba(password_features)
+
+passwords = []
+for num_changes in range(1,3):
+    guesses = generate_k_dist_changes(ml_seq, num_changes, range(26))
+    for seq in guesses:
+        ll = sum([letter_lls[i] for i in seq])
+        password = "".join(valid_letters[seq])
+        passwords.append((ll,password))
+
+passwords.sort()

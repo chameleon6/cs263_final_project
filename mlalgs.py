@@ -217,7 +217,7 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=10, num_clusters=numclusters):
+def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=3, num_clusters=numclusters):
     print "using soft assignments:", soft_cluster
     cluster_fun = clusterize_inner_soft if soft_cluster else clusterize_inner
     print cluster_fun
@@ -229,7 +229,7 @@ def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=10,
         print 'Try', i
         clusters, means, score = cluster_fun(ls, spaces, num_clusters)
         spaces_bw = [clusters[i] for i in spaces]
-        phi, score, _, _ = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, soft_cluster, 5)
+        phi, score, _, _ = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, soft_cluster, 4)
         if score > bestscore:
             bestmeans = means
             bestclusters = clusters
@@ -528,3 +528,16 @@ def spell_check(gamma, seq, word_freq):
         spell_checked_words.append(get_best_word(np.array(w)))
 
     return " ".join(spell_checked_words)
+
+def generate_k_dist_changes(xs, num_changes, poss_subs):
+    if num_changes == 0:
+        return [xs]
+    if num_changes < 0 or xs == []:
+        return []
+
+    ans = []
+    for i,_ in enumerate(xs):
+        rest = generate_k_dist_changes(xs[i+1:], num_changes-1, poss_subs)
+        for j in poss_subs:
+            ans.extend([xs[:i] + [j] + r for r in rest])
+    return ans

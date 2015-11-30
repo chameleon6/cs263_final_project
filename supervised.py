@@ -26,7 +26,7 @@ prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
 
 prior_v = np.zeros(len(valid_letters))
 for c in prior:
-    prior_v[valid_letters.index(c)] = prior[c]
+    prior_v[list(valid_letters).index(c)] = prior[c]
 
 def get_score(model, test_features, test_text):
     test_preds = model.predict(test_features)
@@ -183,35 +183,36 @@ def naive_bayes(text, feature_v, letters=valid_letters):
     print ''.join(real)
     return means, stds, score/float(len(test))
 
-if len(sys.argv) != 3:
-    print 'Usage: %s training|test number' % sys.argv[0]
+if "__name__" == "__main__":
+    if len(sys.argv) != 3:
+        print 'Usage: %s training|test number' % sys.argv[0]
 
-soundf = 'data/sound%s.wav' % sys.argv[2]
-textf = 'data/text%s.txt' % sys.argv[2]
+    soundf = 'data/sound%s.wav' % sys.argv[2]
+    textf = 'data/text%s.txt' % sys.argv[2]
 
-rate, data, text = load_data(soundf, textf)
-starts, ends, chunks = get_chunk_starts(data)
-f = get_features(data, starts, ends)
+    rate, data, text = load_data(soundf, textf)
+    starts, ends, chunks = get_chunk_starts(data)
+    f = get_features(data, starts, ends)
 
-if sys.argv[1] == 'training':
-    means, stds, score = naive_bayes(text, f)
-    #
-    print 'Naive Bayes', score
-    #
-    # weights, score = logistic(text, f)
-    # print 'Logistic', score
+    if sys.argv[1] == 'training':
+        means, stds, score = naive_bayes(text, f)
+        #
+        print 'Naive Bayes', score
+        #
+        # weights, score = logistic(text, f)
+        # print 'Logistic', score
 
-    logreg_score, logreg = logistic_test(text, f)
-    svm_score, svm = svm_test(text, f)
-    joblib.dump(logreg, 'cache/logistic.pkl')
-    print 'Logistic test', logreg_score
-    print 'SVM test', svm_score
-else:
-    try:
-        logreg = joblib.load('cache/logistic.pkl')
-    except:
-        print 'Run `%s training 7` to train your model first' % sys.argv[0]
-        sys.exit()
-    print get_score(logreg, f, text)
-    print ''.join(logreg.predict(f))
+        logreg_score, logreg = logistic_test(text, f)
+        svm_score, svm = svm_test(text, f)
+        joblib.dump(logreg, 'cache/logistic.pkl')
+        print 'Logistic test', logreg_score
+        print 'SVM test', svm_score
+    else:
+        try:
+            logreg = joblib.load('cache/logistic.pkl')
+        except:
+            print 'Run `%s training 7` to train your model first' % sys.argv[0]
+            sys.exit()
+        print get_score(logreg, f, text)
+        print ''.join(logreg.predict(f))
 
