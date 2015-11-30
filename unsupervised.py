@@ -17,9 +17,11 @@ from mlalgs import (
     print_dict_sorted,
     plot_group,
     baum_welch,
+    baum_welch_inner,
     longest_common_subseq,
     spell_check,
-    hmm_predict
+    hmm_predict,
+    numclusters
 )
 
 from features import (
@@ -49,6 +51,9 @@ DATA_FILES = {
     'sound': 'data/sound7.wav', # sound1.wav
     'text': 'data/text7.txt', # text1.txt
 }
+
+rate, data, text = load_data(DATA_FILES['sound'], DATA_FILES['text'])
+
 # the fraction of the file we use
 file_range = (0, 1.0)
 
@@ -58,12 +63,13 @@ DEBUG = False
 # Which plots to actually plot.
 PLOT_SET = set([
     #'Segmentation Plot',
-    #'Cepstrum Plot',
-    #'PCA Plot',
+    #'Features for Space',
+    #'Features for %s' % text[0],
+    #'Feature vector principal components',
 ])
 PRINT_SET = set([
     'Segmentation',
-    'Feature',
+    'Features',
     #'Clustering',
 ])
 CURRENT_STAGE = 'HMM' # or Segmentation, Feature, Clustering, HMM
@@ -82,7 +88,6 @@ def cache_or_compute(fname, fun, *args, **kwargs):
         np.save(fname, c)
         return c
 
-rate, data, text = load_data(DATA_FILES['sound'], DATA_FILES['text'])
 
 pi, A, pi_v, theta_v, word_freq = cache_or_compute("cache/bigram.npy", compute_bigram,
         debug=False)
@@ -131,7 +136,7 @@ ii2[ends] = 1
 plot_group(PLOT_SET, 'Segmentation Plot',
            np.log(np.abs(data[N:M]+0.01)),
            np.log(max(data[N:M]) * ii1[N:M]+0.01),
-           -np.log(max(data[N:M]) * ii2[N:M]+0.01),
+           np.log(max(data[N:M]) * ii2[N:M]+0.01),
            )
 
 if CURRENT_STAGE == 'Segmentation':
@@ -143,10 +148,11 @@ if CURRENT_STAGE == 'Segmentation':
 
 features = cache_or_compute('cache/features.npy', get_features, data, starts, ends, debug=False)
 
-plot_group(PLOT_SET, 'Cepstrum Plot',
-           features[spaces[0]],
-           features[spaces[1]],
-           features[0], features[1])
+plot_group(PLOT_SET, 'Features for Space',
+           features[spaces[0]])
+
+plot_group(PLOT_SET, 'Features for %s' % text[0],
+           features[0])
 features = np.array(features)
 
 if USE_PCA:
@@ -157,10 +163,9 @@ if USE_PCA:
         print "total explained var", sum(pca.explained_variance_ratio_)
 
     features = pca.transform(features)
-    plot_group(PLOT_SET, 'PCA Plot',
+    plot_group(PLOT_SET, 'Feature vector principal components',
                features[spaces[0]],
-               features[spaces[1]],
-               features[0], features[1])
+               features[0])
 
 if CURRENT_STAGE == 'Feature':
     sys.exit()
@@ -220,11 +225,34 @@ if CURRENT_STAGE == 'Clustering':
 
 spaces_bw = [clusters[i] for i in spaces]
 phi, score, seq, gamma = cache_or_compute("hmm.npy", baum_welch, pi_v,
-        theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 5, debug=True)
+        theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 15, debug=True)
 spell_checked_seq = spell_check(gamma, seq, word_freq)
+print ''.join(spell_checked_seq)
 
 def score_final_output(seq):
     return len([1 for c,c2 in zip(seq, text) if c == c2])/float(len(text))
 
 print "Before spell check", score_final_output(seq)
 print "After spell check", score_final_output(spell_checked_seq)
+
+# Now, take output of spell checking, and use it to retrain hmm
+counts = {}
+for character, cluster in zip(spell_checked_seq, clusters):
+    if character not in counts:
+        counts[character] = np.ones(numclusters) * 0.5
+    counts[character][cluster] += 1
+
+phi = np.random.rand(len(pi), numclusters)
+phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
+for character in counts:
+    phi[character, :] = counts[character]/np.sum(counts[character])
+
+phi, score, seq, gamma = baum_welch_inner(pi_v, theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, phi=phi)
+
+print '======================='
+print 'After feedback'
+spell_checked_seq = spell_check(gamma, seq, word_freq)
+print ''.join(seq)
+print score_final_output(seq)
+print ''.join(spell_checked_seq)
+print score_final_output(spell_checked_seq)

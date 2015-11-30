@@ -1,6 +1,5 @@
 import re
 import numpy as np
-from mlalgs import print_dict_sorted
 
 valid_letters = np.array(map(chr, range(97,123)) + [' '])
 def compute_freq_dist(data):

@@ -12,7 +12,7 @@ from sklearn.mixture import GMM
 from python_speech_features.features import mfcc
 from scipy import signal
 
-numclusters = 60
+numclusters = 50
 
 def load_data(wav_file, text_file):
     rate, data = scipy.io.wavfile.read(wav_file)
@@ -229,7 +229,7 @@ def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=10,
         print 'Try', i
         clusters, means, score = cluster_fun(ls, spaces, num_clusters)
         spaces_bw = [clusters[i] for i in spaces]
-        phi, score = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, soft_cluster, 5)
+        phi, score, _, _ = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, soft_cluster, 5)
         if score > bestscore:
             bestmeans = means
             bestclusters = clusters
@@ -415,19 +415,20 @@ def hmm_predict(pi, theta, phi, observations):
         seq.append(valid_letters[np.argmax(gamma[t, :])])
     return ''.join(seq)
 
-def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclusters=numclusters):
+def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclusters=numclusters, phi=None):
     # Theta is transition probability: i-jth entry is transition from i to j
     K = len(pi) # Number of hidden states
     T = len(observations)
-    phi = np.random.rand(len(pi), numclusters)
-    phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
-    phi[26, :] = 0
-    for i in spaces:
-        if soft_cluster:
-            for clust_ind, prob in enumerate(i):
-                phi[26, clust_ind] += prob / len(spaces)
-        else:
-            phi[26, i] += 1.0 / len(spaces)
+    if phi is None:
+        phi = np.random.rand(len(pi), numclusters)
+        phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
+        phi[26, :] = 0
+        for i in spaces:
+            if soft_cluster:
+                for clust_ind, prob in enumerate(i):
+                    phi[26, clust_ind] += prob / len(spaces)
+            else:
+                phi[26, i] += 1.0 / len(spaces)
 
     if soft_cluster:
         characteristic = observations
