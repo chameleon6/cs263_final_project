@@ -225,7 +225,7 @@ if CURRENT_STAGE == 'Clustering':
 
 spaces_bw = [clusters[i] for i in spaces]
 phi, score, seq, gamma = cache_or_compute("hmm.npy", baum_welch, pi_v,
-        theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 15, debug=True)
+        theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 5, debug=True)
 spell_checked_seq = spell_check(gamma, seq, word_freq)
 print ''.join(spell_checked_seq)
 
@@ -240,12 +240,13 @@ counts = {}
 for character, cluster in zip(spell_checked_seq, clusters):
     if character not in counts:
         counts[character] = np.ones(numclusters) * 0.5
-    counts[character][cluster] += 1
+    counts[character] += cluster
 
 phi = np.random.rand(len(pi), numclusters)
 phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
+valid_letters = map(chr, range(97,123)) + [' ']
 for character in counts:
-    phi[character, :] = counts[character]/np.sum(counts[character])
+    phi[valid_letters.index(character), :] = counts[character]/np.sum(counts[character])
 
 phi, score, seq, gamma = baum_welch_inner(pi_v, theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, phi=phi)
 
