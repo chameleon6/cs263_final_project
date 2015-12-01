@@ -45,7 +45,7 @@ def compute_bigram(fname = 'full_text.txt'):
             a = i.strip().split(" ")
             if len(a) > 3 or a[2] == "Freq":
                 continue
-            w = a[0]
+            w = a[0].lower()
             if is_lowercase_word(w):
                 word_freqs[w] = int(a[2])
 

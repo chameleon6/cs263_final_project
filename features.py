@@ -73,6 +73,7 @@ def get_features_cepstrum(data, starts, ends,
         for i in range(b, b+max_s):
             tot.append(f[i, 1:])
         ans.append(np.concatenate(tot))
+    ans = np.array(ans)
     return normalize(ans)
 
 def get_features(data, starts, ends, include_fft=True, include_cepstrum=True):

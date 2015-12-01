@@ -23,10 +23,10 @@ prior = {' ': 0.17754225405572727, 'a': 0.0661603239798244, 'b':
          0.008193087316555922, 'w': 0.01545147079366807, 'x':
          0.001635948366495417, 'y': 0.014166144690698474, 'z':
          0.0007827039753250665}
-
+valid_letters = list(valid_letters)
 prior_v = np.zeros(len(valid_letters))
 for c in prior:
-    prior_v[valid_letters.index(c)] = prior[c]
+    prior_v[list(valid_letters).index(c)] = prior[c]
 
 def get_score(model, test_features, test_text):
     test_preds = model.predict(test_features)
@@ -183,15 +183,15 @@ def naive_bayes(text, feature_v, letters=valid_letters):
     print ''.join(real)
     return means, stds, score/float(len(test))
 
-if len(sys.argv) != 3:
-    print 'Usage: %s training|test number' % sys.argv[0]
+if len(sys.argv) != 4:
+    print 'Usage: %s training|test soundf textf' % sys.argv[0]
 
-soundf = 'data/sound%s.wav' % sys.argv[2]
-textf = 'data/text%s.txt' % sys.argv[2]
+soundf = sys.argv[2]
+textf = sys.argv[3]
 
 rate, data, text = load_data(soundf, textf)
 starts, ends, chunks = get_chunk_starts(data)
-f = get_features(data, starts, ends)
+f = get_features(data, starts, ends, include_fft=True, include_cepstrum=True)
 
 if sys.argv[1] == 'training':
     means, stds, score = naive_bayes(text, f)

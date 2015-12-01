@@ -156,7 +156,7 @@ plot_group(PLOT_SET, 'Features for %s' % text[0],
 features = np.array(features)
 
 if USE_PCA:
-    pca = PCA(n_components=80)
+    pca = PCA(n_components=60)
     pca.fit(features)
     if 'Feature' in PRINT_SET:
         print "explained variances", pca.explained_variance_ratio_
@@ -226,7 +226,7 @@ if CURRENT_STAGE == 'Clustering':
 spaces_bw = [clusters[i] for i in spaces]
 phi, score, seq, gamma = cache_or_compute("hmm.npy", baum_welch, pi_v,
         theta_v, clusters, spaces_bw, text, SOFT_CLUSTER, 5, debug=True)
-spell_checked_seq = spell_check(gamma, seq, word_freq)
+spell_checked_seq = spell_check(phi, clusters, gamma, seq, word_freq)
 print ''.join(spell_checked_seq)
 
 def score_final_output(seq):
@@ -252,7 +252,7 @@ phi, score, seq, gamma = baum_welch_inner(pi_v, theta_v, clusters, spaces_bw, te
 
 print '======================='
 print 'After feedback'
-spell_checked_seq = spell_check(gamma, seq, word_freq)
+spell_checked_seq = spell_check(phi, clusters, gamma, seq, word_freq)
 print ''.join(seq)
 print score_final_output(seq)
 print ''.join(spell_checked_seq)

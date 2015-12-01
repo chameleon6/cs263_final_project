@@ -173,9 +173,10 @@ def get_chunk_starts(data):
     starts = []
     ends = []
     data_chunks=[]
-    #plt.plot(np.log(power))
-    #plt.plot(np.log(np.ones(len(power))*thresh1))
-    #plt.plot(np.log(np.ones(len(power))*thresh2))
+    #plt.plot(np.log(power), 'r')
+    #plt.plot(np.log(np.ones(len(power))*thresh1), 'g')
+    #plt.plot(np.log(np.ones(len(power))*thresh2), 'b')
+    #plt.title('Power spectrum for key stroke')
     #plt.show()
     for p in peaks:
         if ends and p < ends[-1]/hopsamp:
@@ -217,7 +218,7 @@ def get_chunk_starts(data):
 
     return starts, ends, np.array(data_chunks)
 
-def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=10, num_clusters=numclusters):
+def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=2, num_clusters=numclusters):
     print "using soft assignments:", soft_cluster
     cluster_fun = clusterize_inner_soft if soft_cluster else clusterize_inner
     print cluster_fun
@@ -229,7 +230,7 @@ def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=10,
         print 'Try', i
         clusters, means, score = cluster_fun(ls, spaces, num_clusters)
         spaces_bw = [clusters[i] for i in spaces]
-        phi, score, _, _ = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, soft_cluster, 5)
+        phi, score, _, _ = baum_welch(pi_v, theta_v, clusters, spaces_bw, text, soft_cluster, 3)
         if score > bestscore:
             bestmeans = means
             bestclusters = clusters
@@ -452,14 +453,12 @@ def baum_welch_inner(pi, theta, observations, spaces, text, soft_cluster, numclu
         for t, o in enumerate(observations):
             characteristic[t, o] = 1
 
-    for iteration in range(200):
+    for iteration in range(150):
         # E-step
         gamma, loglikelihood = hmm_gamma(pi, theta, phi, observations)
         # M-step
         phi = (np.dot(gamma.transpose(), characteristic).transpose() / np.sum(gamma, axis=0)).transpose()
         phi = (phi.transpose()/np.sum(phi, axis=1)).transpose()
-
-    #valid_letters = map(chr, range(97,123)) + [' ']
 
     seq = hmm_predict(pi, theta, phi, observations)
     print seq
@@ -486,13 +485,13 @@ def baum_welch(pi, theta, observations, spaces, text, soft_cluster, iterations):
     print best_score, besti, "".join(best_seq)
     return bestphi, score, best_seq, best_gamma
 
-def spell_check(gamma, seq, word_freq):
+def spell_check(phi, observations, gamma, seq, word_freq):
 
-    def get_best_word(hmm_w):
+    def get_best_word(hmm_w, hmm_clusts):
         inds = map(np.argmax, hmm_w)
         #print hmm_w, inds
         best_word = "".join(valid_letters[inds])
-        ps = [hmm_w[i][inds[i]] for i in range(len(inds))]
+        ps = [phi.dot(hmm_clusts[i])[inds[i]] for i in range(len(inds))]
         best_word_log_prob = np.sum(np.log(ps))
         #print best_word, best_word_log_prob
         best_word_log_prob += np.log(word_freq.get(best_word, 0.00001))
@@ -502,7 +501,7 @@ def spell_check(gamma, seq, word_freq):
                 continue
             inds = np.array(map(ord, w_guess)) - 97
             #print w_guess, inds
-            ps = [hmm_w[i][inds[i]] for i in range(len(inds))]
+            ps = [phi.dot(hmm_clusts[i])[inds[i]] for i in range(len(inds))]
             w_log_prob = np.sum(np.log(ps)) + np.log(word_freq[w_guess])
             if w_log_prob > best_word_log_prob:
                 best_word_log_prob = w_log_prob
@@ -517,14 +516,17 @@ def spell_check(gamma, seq, word_freq):
         assert np.abs(np.sum(i) - 1) < 0.001
     is_space = {i:True for (i,x) in enumerate(seq) if x == ' '}
     hmm_words = [[]]
+    hmm_clusts = [[]]
     for i, x in enumerate(gamma):
         if i in is_space:
             hmm_words.append([])
+            hmm_clusts.append([])
         else:
             hmm_words[-1].append(x)
+            hmm_clusts[-1].append(observations[i])
 
     spell_checked_words = []
-    for w in hmm_words:
-        spell_checked_words.append(get_best_word(np.array(w)))
+    for w, c in zip(hmm_words, hmm_clusts):
+        spell_checked_words.append(get_best_word(np.array(w), np.array(c)))
 
     return " ".join(spell_checked_words)
