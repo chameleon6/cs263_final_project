@@ -16,9 +16,6 @@ numclusters = 50
 
 def load_data(wav_file, text_file):
     rate, data = scipy.io.wavfile.read(wav_file)
-    #data_end = len(data) - 50000
-    #data = np.abs(data[:data_end] + 0.01)
-
     data = data.astype(float)
 
     # Convert stereo to mono
@@ -129,7 +126,6 @@ def get_chunk_starts_simpler(data):
                 data_chunks.append(np.array(current_chunk))
             else:
                 data_chunks[-1] = np.append(data_chunks[-1],np.array(current_chunk))
-                #starts = starts[:-1]
             current_chunk = []
             last_max = current_max
 
@@ -143,9 +139,7 @@ def get_chunk_starts_simpler(data):
         ends.append(min(last_start + average_keypress_len, len(data)-1))
         data_chunks[i] = chunk[:average_keypress_len]
 
-    #return data, is_start, np.array(data_chunks)
     return starts, ends, np.array(data_chunks)
-
 
 def get_chunk_starts(data):
     '''
@@ -173,11 +167,6 @@ def get_chunk_starts(data):
     starts = []
     ends = []
     data_chunks=[]
-    #plt.plot(np.log(power), 'r')
-    #plt.plot(np.log(np.ones(len(power))*thresh1), 'g')
-    #plt.plot(np.log(np.ones(len(power))*thresh2), 'b')
-    #plt.title('Power spectrum for key stroke')
-    #plt.show()
     for p in peaks:
         if ends and p < ends[-1]/hopsamp:
             continue
@@ -242,7 +231,7 @@ def clusterize(ls, spaces, soft_cluster, pi_v, theta_v, text, num_iterations=3, 
 def clusterize_inner_soft(X, spaces, num_clusters=numclusters):
 
     # EM
-    covar_type = "tied" #['spherical', 'diag', 'tied', 'full']
+    covar_type = "tied" # or ['spherical', 'diag', 'tied', 'full']
     classifier = GMM(n_components=num_clusters, covariance_type=covar_type,
             init_params='wc', n_iter=50)
     not_spaces = [i for i in range(len(X)) if i not in spaces]
@@ -250,61 +239,8 @@ def clusterize_inner_soft(X, spaces, num_clusters=numclusters):
     classifier.means_ = np.array(means)
     classifier.fit(X)
 
-    #print "predict", classifier.predict(X)
-    #print "means", classifier.means_
-    #print "score", classifier.score(X)
     return classifier.predict_proba(X), classifier.means_, -np.sum(classifier.score(X))
 
-    '''
-    This is soft k means, which doesn't work well
-
-    def standardized(X):
-        X_mean = np.mean(X,0)
-        X_sd = np.std(X,0)
-        return (X - X_mean) / X_sd
-
-    m = len(X)
-    X = standardized(X)
-
-    feature_len = len(X[0])
-    not_spaces = [i for i in range(len(X)) if i not in spaces]
-    means = random.sample(X[spaces], 3) + random.sample(X[not_spaces], num_clusters-3)
-    means = np.array(means)
-    variances = np.ones((num_clusters, feature_len))
-
-    Z = np.zeros((m, num_clusters))
-
-    def compute_variances():
-        variances = np.zeros((num_clusters, feature_len))
-        for i in range(num_clusters):
-            variances[i] = Z.T[i].dot((X - means[i])**2) / np.sum(Z.T[i])
-        print "V:", variances
-        return variances
-
-    for j in range(20):
-        # E step
-        for i in range(m):
-            dists = np.sum((means - X[i])**2 / variances, 1)
-            #dists = dists - dists[0]
-            #Z[i] = np.exp(-dists)
-            Z[i] = 1/(dists + 0.1)
-            Z[i] = Z[i] / np.sum(Z[i])
-            #print "Z"
-            #print Z[i]
-            #print "dist"
-            #print dists
-            #print "sum"
-            #print np.sum(Z[i])
-
-
-        # M step
-        means = Z.T.dot(X) / np.sum(Z,0)[:,np.newaxis]
-        print "M", means
-        variances = compute_variances()
-
-    score = np.linalg.norm(X - np.dot(Z, means))
-    return Z, None, score
-    '''
 
 def clusterize_inner(ls, spaces, num_clusters=numclusters):
     '''Clusters the objects (np arrays) in ls into clusters
@@ -319,7 +255,6 @@ def clusterize_inner(ls, spaces, num_clusters=numclusters):
     notspaces = [i for i in range(len(ls)) if i not in spaces]
     space_clusts = min(3, num_clusters-1)
     means = random.sample(ls[spaces], space_clusts) + random.sample(ls[notspaces], num_clusters-space_clusts)
-    #variances = [np.identity(n) for _ in range(m)]
     assignments = [0 for i in range(len(ls))]
     dead_cluster = {}
 
@@ -337,7 +272,6 @@ def clusterize_inner(ls, spaces, num_clusters=numclusters):
         for i, m in enumerate(means):
             if i in dead_cluster:
                 continue
-            #e = np.linalg.norm(l-m)
             e = distance(l, m)
             if e < smallest_e or smallest_i == -1:
                 smallest_i = i
@@ -347,6 +281,7 @@ def clusterize_inner(ls, spaces, num_clusters=numclusters):
     for j in range(40):
 
         changes = 0
+
         # E-step
         z = [[] for _ in range(num_clusters)]
         for (ind, l) in enumerate(ls):
@@ -367,9 +302,7 @@ def clusterize_inner(ls, spaces, num_clusters=numclusters):
             means[i] = sum(item for item in z[i])/len(z[i])
             for item in z[i]:
                 score += np.linalg.norm(item - means[i])
-            #variances[i] = sum(var_sample(item - means[i]) for item in z[i])/len(z[i])
 
-        #print variances
         print "iteration:", j, "num_changes:", changes
         if changes < 5:
             break
@@ -489,26 +422,21 @@ def spell_check(phi, observations, gamma, seq, word_freq):
 
     def get_best_word(hmm_w, hmm_clusts):
         inds = map(np.argmax, hmm_w)
-        #print hmm_w, inds
         best_word = "".join(valid_letters[inds])
         ps = [phi.dot(hmm_clusts[i])[inds[i]] for i in range(len(inds))]
         best_word_log_prob = np.sum(np.log(ps))
-        #print best_word, best_word_log_prob
         best_word_log_prob += np.log(word_freq.get(best_word, 0.00001))
 
         for w_guess in word_freq:
             if len(w_guess) != len(hmm_w):
                 continue
             inds = np.array(map(ord, w_guess)) - 97
-            #print w_guess, inds
             ps = [phi.dot(hmm_clusts[i])[inds[i]] for i in range(len(inds))]
             w_log_prob = np.sum(np.log(ps)) + np.log(word_freq[w_guess])
             if w_log_prob > best_word_log_prob:
                 best_word_log_prob = w_log_prob
                 best_word = w_guess
-                #print best_word, best_word_log_prob
 
-        print best_word
         return best_word
 
     assert len(gamma) == len(seq)

@@ -94,13 +94,6 @@ def cache_or_compute(fname, fun, *args, **kwargs):
 pi, A, pi_v, theta_v, word_freq = cache_or_compute("cache/bigram.npy", compute_bigram,
         debug=False)
 
-"""
-spaces = []
-for (i,c) in enumerate(text):
-    if c == ' ':
-        spaces.append(i)
-        """
-
 ###################################################################
 # Segmentation
 ###################################################################
@@ -117,18 +110,6 @@ if 'Segmentation' in PRINT_SET:
     print "num_chunks", len(chunks)
 
 spaces = cache_or_compute("cache/spaces.npy", find_spaces, data, starts, ends)
-'''
-Cheating:
-spaces = []
-for (i,c) in enumerate(text):
-    if c == ' ':
-        spaces.append(i)
-'''
-
-
-'''
-Spaciness code moved to spaces_code.py, since it is currently unused.
-'''
 
 N, M = 0, 1000000
 ii1 = np.zeros(len(data))
@@ -171,16 +152,6 @@ if USE_PCA:
 
 if CURRENT_STAGE == 'Feature':
     sys.exit()
-
-'''
-from hmmlearn import hmm
-
-model = hmm.GaussianHMM(n_components=27, covariance_type="diag", n_iter=1000).fit(features)
-hidden_states = model.predict(feature_v)
-print hidden_states
-
-sys.exit()
-'''
 
 ###################################################################
 # Clustering

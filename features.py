@@ -59,7 +59,7 @@ def get_features_cepstrum(data, starts, ends,
                          winlen=0.01, winstep=0.01,
                          numcep=20, nfilt=32, appendEnergy=False, keylen=40):
     '''Grab the features from a single keystroke'''
-    # return np.float64(np.log(np.absolute(np.float32(chunk))+0.01)[:4000:4])
+
     # The definition of cepstrum
     f = mfcc(data, samplerate=44100, winlen=winlen, winstep=winstep, numcep=numcep, nfilt=nfilt, appendEnergy=appendEnergy)
     ans = []
@@ -200,7 +200,7 @@ def gen_segmentation_report(data, starts, ends):
         counter -= 1
         plt.title('Chars %s to %s' % (prev_counter, counter))
         prev_counter = counter
-        
+
         if (i+1) % 3 == 0:
             plt.tight_layout()
             pdf_pages.savefig(fig)
@@ -209,5 +209,3 @@ def gen_segmentation_report(data, starts, ends):
     pdf_pages.savefig(fig)
     plt.close(fig)
     pdf_pages.close()
-
-

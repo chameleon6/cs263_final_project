@@ -67,7 +67,6 @@ def logistic(text, feature_v, letters=valid_letters):
 
     cutoff = int(len(text) * 0.8)
     training = pairing[:cutoff]
-    #test = pairing[cutoff:]
     test = training
 
     weights = {c: 1.0 / len(feature_v[0]) * np.random.randn(feature_v.shape[1] + 1) for c in letters}
@@ -196,11 +195,7 @@ if __name__ == '__main__':
 
     if sys.argv[1] == 'training':
         means, stds, score = naive_bayes(text, f)
-        #
         print 'Naive Bayes', score
-        #
-        # weights, score = logistic(text, f)
-        # print 'Logistic', score
 
         logreg_score, logreg = logistic_test(text, f)
         svm_score, svm = svm_test(text, f)
