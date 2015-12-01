@@ -183,35 +183,35 @@ def naive_bayes(text, feature_v, letters=valid_letters):
     print ''.join(real)
     return means, stds, score/float(len(test))
 
-if len(sys.argv) != 4:
-    print 'Usage: %s training|test soundf textf' % sys.argv[0]
+if __name__ == '__main__':
+    if len(sys.argv) != 4:
+        print 'Usage: %s training|test soundf textf' % sys.argv[0]
 
-soundf = sys.argv[2]
-textf = sys.argv[3]
+    soundf = sys.argv[2]
+    textf = sys.argv[3]
 
-rate, data, text = load_data(soundf, textf)
-starts, ends, chunks = get_chunk_starts(data)
-f = get_features(data, starts, ends, include_fft=True, include_cepstrum=True)
+    rate, data, text = load_data(soundf, textf)
+    starts, ends, chunks = get_chunk_starts(data)
+    f = get_features(data, starts, ends, include_fft=True, include_cepstrum=True)
 
-if sys.argv[1] == 'training':
-    means, stds, score = naive_bayes(text, f)
-    #
-    print 'Naive Bayes', score
-    #
-    # weights, score = logistic(text, f)
-    # print 'Logistic', score
+    if sys.argv[1] == 'training':
+        means, stds, score = naive_bayes(text, f)
+        #
+        print 'Naive Bayes', score
+        #
+        # weights, score = logistic(text, f)
+        # print 'Logistic', score
 
-    logreg_score, logreg = logistic_test(text, f)
-    svm_score, svm = svm_test(text, f)
-    joblib.dump(logreg, 'cache/logistic.pkl')
-    print 'Logistic test', logreg_score
-    print 'SVM test', svm_score
-else:
-    try:
-        logreg = joblib.load('cache/logistic.pkl')
-    except:
-        print 'Run `%s training 7` to train your model first' % sys.argv[0]
-        sys.exit()
-    print get_score(logreg, f, text)
-    print ''.join(logreg.predict(f))
-
+        logreg_score, logreg = logistic_test(text, f)
+        svm_score, svm = svm_test(text, f)
+        joblib.dump(logreg, 'cache/logistic.pkl')
+        print 'Logistic test', logreg_score
+        print 'SVM test', svm_score
+    else:
+        try:
+            logreg = joblib.load('cache/logistic.pkl')
+        except:
+            print 'Run `%s training 7` to train your model first' % sys.argv[0]
+            sys.exit()
+        print get_score(logreg, f, text)
+        print ''.join(logreg.predict(f))
